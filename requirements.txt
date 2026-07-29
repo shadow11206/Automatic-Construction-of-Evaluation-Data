@@ -1,0 +1,14 @@
+# VQA 评测数据批量构建工具 — 依赖清单
+
+# 原有 CLI 依赖
+dashscope>=1.20.0
+opencv-python>=4.0
+pandas>=2.0
+openpyxl>=3.0
+tqdm>=4.0
+
+# Web 后端（server/）
+fastapi>=0.110
+uvicorn[standard]>=0.29
+python-multipart>=0.0.9
+requests>=2.31
