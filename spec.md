@@ -86,11 +86,14 @@
 
 ### F5 设置
 
-- F5.1 DashScope API Key（密码输入框，接口只回显掩码如 `sk-****4fe6`）
-- F5.2 模型名（默认 `qwen3.6-plus`，可改）
-- F5.3 MAX_FRAMES（默认 64）
-- F5.4 关键词校验开关（对应 validate.py 的 `ENABLE_KEYWORD_CHECK`）
-- F5.5 保存到 `server/settings.json`，生成任务启动时热注入，无需重启服务
+- F5.1 平台选择：阿里云百炼 DashScope / OpenAI / OpenRouter / 智谱 GLM / 自定义（OpenAI 兼容接口）
+- F5.2 各平台独立配置 profile（API Key、Base URL、模型名），切换平台不丢已填内容；Base URL 按平台自动填充默认值且可改
+- F5.3 DashScope 走原生视频调用（复用现有 video_utils）；其余平台由 server/vl_adapter.py 自动转为「OpenCV 抽帧 + base64 图片」走 OpenAI 兼容 HTTP 接口，页面需提示「视频理解效果取决于所选模型」
+- F5.4 DashScope API Key（密码输入框，接口只回显掩码如 `sk-****4fe6`）——所有平台的 Key 统一掩码规则
+- F5.5 MAX_FRAMES（默认 64）、失败重试次数（默认 2）
+- F5.6 关键词校验开关（对应 validate.py 的 `ENABLE_KEYWORD_CHECK`）
+- F5.7 保存到 `server/settings.json`，生成任务启动时热注入，无需重启服务
+- F5.8 「测试 API 连通性」按钮：用当前平台 profile 发一条最小请求验证 Key 可用
 
 ## 5. 接口规格（后端 API）
 
@@ -134,8 +137,9 @@
 ├── prompt_templates.py / video_utils.py               # 原模块（不动）
 ├── server/                # 【新增】后端
 │   ├── main.py            # FastAPI app + 全部路由 + 静态托管 web/dist
-│   ├── store.py           # xlsx/json 读写层、settings 持久化
+│   ├── store.py           # xlsx/json 读写层、settings 持久化（多平台 profile）
 │   ├── jobs.py            # 后台任务执行器（线程 + JobState + 锁）
+│   ├── vl_adapter.py      # 多平台 VL 调用适配层（dashscope 委托原模块，其余走 OpenAI 兼容抽帧方案）
 │   └── settings.json      # 运行时生成，gitignore
 ├── web/                   # 【新增】前端
 │   ├── package.json / vite.config.js

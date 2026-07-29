@@ -411,18 +411,34 @@
 
       <!-- ============ 页面 5：设置 ============ -->
       <section class="page" id="page-settings">
-        <div class="card" style="max-width:640px;">
-          <div class="card-title">模型与生成设置 <span class="sub">保存后立即生效，无需重启</span></div>
+        <div class="card" style="max-width:720px;">
+          <div class="card-title">模型与生成设置 <span class="sub">保存后立即生效，无需重启 · 各平台配置独立保存，切换不丢失</span></div>
           <div class="form-row">
-            <span class="form-label"><span class="req">*</span>DashScope API Key</span>
+            <span class="form-label"><span class="req">*</span>API 平台</span>
+            <select class="input" id="providerSel" style="width:320px;">
+              <option value="dashscope">阿里云百炼 DashScope（原生视频理解）</option>
+              <option value="openai">OpenAI</option>
+              <option value="openrouter">OpenRouter</option>
+              <option value="zhipu">智谱 GLM</option>
+              <option value="custom">自定义（OpenAI 兼容接口）</option>
+            </select>
+          </div>
+          <div class="form-row" id="baseUrlRow" style="display:none;">
+            <span class="form-label">Base URL</span>
+            <input class="input" id="baseUrlInput" value="https://api.openai.com/v1">
+            <span class="form-hint">已按平台预填，可改</span>
+          </div>
+          <div class="form-row">
+            <span class="form-label"><span class="req">*</span>API Key</span>
             <input class="input" type="password" value="sk-your-api-key-here">
             <span class="form-hint">仅存本地 server/settings.json</span>
           </div>
           <div class="form-row">
             <span class="form-label">模型名称</span>
-            <input class="input" value="qwen3.6-plus">
-            <span class="form-hint">如 qwen-vl-max 等</span>
+            <input class="input" id="modelInput" value="qwen3.6-plus">
+            <span class="form-hint" id="modelHint">如 qwen-vl-max 等</span>
           </div>
+          <div class="drawer-hint" id="providerHint" style="margin:0 0 18px 140px;">✅ DashScope 原生支持视频输入，直接复用现有调用链路，效果最稳定</div>
           <div class="form-row">
             <span class="form-label">最大抽帧数</span>
             <input class="input" value="64" style="width:120px;">
@@ -464,6 +480,23 @@
       document.getElementById("page-" + key).classList.add("show");
       document.getElementById("pageTitle").textContent = titles[key];
     });
+  });
+
+  // 设置页：平台切换联动
+  const PROVIDERS = {
+    dashscope: { baseUrl: "", model: "qwen3.6-plus", modelHint: "如 qwen-vl-max 等", hint: "✅ DashScope 原生支持视频输入，直接复用现有调用链路，效果最稳定", showUrl: false },
+    openai:    { baseUrl: "https://api.openai.com/v1", model: "gpt-4o", modelHint: "需支持图片输入的多模态模型", hint: "⚠️ 非 DashScope 平台将自动转为「抽帧 + 图片」方式调用，视频理解效果取决于所选模型", showUrl: true },
+    openrouter:{ baseUrl: "https://openrouter.ai/api/v1", model: "", modelHint: "如 openai/gpt-4o、google/gemini-2.5-pro", hint: "⚠️ 非 DashScope 平台将自动转为「抽帧 + 图片」方式调用，视频理解效果取决于所选模型", showUrl: true },
+    zhipu:     { baseUrl: "https://open.bigmodel.cn/api/paas/v4", model: "glm-4v-plus", modelHint: "如 glm-4v-plus 等", hint: "⚠️ 非 DashScope 平台将自动转为「抽帧 + 图片」方式调用，视频理解效果取决于所选模型", showUrl: true },
+    custom:    { baseUrl: "", model: "", modelHint: "你的模型名", hint: "⚠️ 任何兼容 OpenAI Chat Completions 格式的接口均可接入；将采用「抽帧 + 图片」方式调用", showUrl: true }
+  };
+  document.getElementById("providerSel").addEventListener("change", e => {
+    const p = PROVIDERS[e.target.value];
+    document.getElementById("baseUrlRow").style.display = p.showUrl ? "flex" : "none";
+    document.getElementById("baseUrlInput").value = p.baseUrl;
+    document.getElementById("modelInput").value = p.model;
+    document.getElementById("modelHint").textContent = p.modelHint;
+    document.getElementById("providerHint").textContent = p.hint;
   });
 </script>
 </body>

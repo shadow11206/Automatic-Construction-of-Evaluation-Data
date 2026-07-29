@@ -13,7 +13,7 @@
 
 ## 阶段 0：环境准备
 
-- [ ] T0.1 `pip install fastapi uvicorn python-multipart` 并写入 `requirements.txt`（连同原有 dashscope/opencv-python/pandas/openpyxl/tqdm）
+- [ ] T0.1 `pip install fastapi uvicorn python-multipart requests` 并写入 `requirements.txt`（连同原有 dashscope/opencv-python/pandas/openpyxl/tqdm）
 - [ ] T0.2 创建 `server/` 与 `web/` 目录结构；`.gitignore` 增加 `server/settings.json`、`web/node_modules`、`web/dist`、`venv/`、`__pycache__/`、`.DS_Store`
 - [ ] T0.3 配置 GitHub 远程仓库（需用户提供 repo 地址或授权创建），完成首次推送
 
@@ -31,12 +31,13 @@
 - [ ] T1.3 视频清单读写：读 video_list.xlsx；保存勾选清单写回 xlsx
 - [ ] T1.4 视频目录扫描：遍历 videos/，调用 `video_utils.get_video_info` 返回 {name, duration, size, in_list}
 - [ ] T1.5 结果读写：load/save results.json 与 final.json（保存时同步刷新对应 CSV，复用 generate_vqa.save_both / validate.save_both）
-- [ ] T1.6 设置读写：`load_settings()` / `save_settings()`；API Key 掩码函数 `mask_key()`
+- [ ] T1.6 设置读写：`load_settings()` / `save_settings()`；多平台 profile 结构（active_provider + providers{}，各平台独立 api_key/base_url/model，切换不丢内容）；API Key 掩码函数 `mask_key()`
 
 **✅ 阶段 1 验证清单**
 - [ ] 单元自测脚本跑通：读 xlsx → 改一行 → 写回 → 用原 `prepare_tasks.py` 命令行重跑确认仍正常（CLI 兼容未破坏）
 - [ ] `mask_key("sk-abcdef1234")` 输出不含完整密钥
 - [ ] 写回后的 xlsx 用 Excel/Numbers 打开列名、中文无乱码
+- [ ] settings.json 多平台结构读写往返一致；切换 active_provider 后各 profile 内容保持
 
 ---
 
@@ -48,12 +49,14 @@
 - [ ] T2.4 generate 后台线程：启动前注入 settings 到 generate_vqa 模块（API_KEY/MODEL/MAX_FRAMES）；沿用 fingerprint 断点续跑；每条更新 JobState；每 5 条落盘
 - [ ] T2.5 协作式停止：stop_flag，每条处理前检查；停止后落盘并置 status=stopped
 - [ ] T2.6 防重入：status==running 时拒绝再次启动（返回 409）
+- [ ] T2.7 多平台适配层 `server/vl_adapter.py`：统一入口 `call_vl_model()`；dashscope 委托 `video_utils.call_qwen_vl`；其余平台 OpenCV 抽帧 → base64 → OpenAI 兼容 HTTP（requests）；generate 线程改走适配层
 
 **✅ 阶段 2 验证清单**
 - [ ] python 内直接调用 run_prepare() → tasks.json 生成且摘要与 CLI 输出一致
 - [ ] python 内直接调用 run_validate() → final.json/csv 与 CLI 产物 diff 无结构差异
 - [ ] 模拟启动两次 generate：第二次被 409 拒绝
 - [ ] stop_flag 置位后：线程在当前条结束后退出，results.json 已落盘、status=stopped
+- [ ] vl_adapter：dashscope 路径真实调通 1 条；OpenAI 兼容路径用 mock server 验证请求体格式（messages 含 base64 图片数组）
 
 ---
 
@@ -65,7 +68,7 @@
 - [ ] T3.4 视频流：GET `/videos/{name}`（FileResponse，Range 支持，文件名防路径穿越）
 - [ ] T3.5 流水线路由：POST prepare / generate / validate / stop，GET `/api/pipeline/status`
 - [ ] T3.6 结果路由：GET `/api/results`（筛选）、PUT `/api/results/{data_id}`、POST `/api/results/rerun`
-- [ ] T3.7 设置路由：GET/PUT `/api/settings`（GET 掩码 Key）
+- [ ] T3.7 设置路由：GET/PUT `/api/settings`（GET 掩码所有平台 Key）；POST `/api/settings/test` 连通性测试
 - [ ] T3.8 静态托管：web/dist 存在时挂载 `/`，SPA fallback
 - [ ] T3.9 入口：`python server/main.py` 直接启动（uvicorn :8000）
 
@@ -112,7 +115,7 @@
 - [ ] T6.2 类目配置页（F2）：可编辑表格（增删改）+ 内置类目下拉提示 + 总任务数实时合计 + 难度权重（校验和=1）+ 保存
 - [ ] T6.3 视频管理页（F3）：Dragger 多文件上传 + 表格（预览/时长/大小/参与勾选/删除）+ 播放器 Modal + 保存清单
 - [ ] T6.4 结果审核页（F4）：筛选栏 + 表格 + 行内编辑 + Drawer 视频并排审核 + 批量标记重跑/删除 + results/final 切换
-- [ ] T6.5 设置页（F5）：表单（Key 密码框/模型/MAX_FRAMES/关键词开关）+ 保存
+- [ ] T6.5 设置页（F5）：平台选择器（DashScope/OpenAI/OpenRouter/智谱/自定义）+ 各平台 profile 表单（Key 密码框/Base URL 自动填充可改/模型名）+ MAX_FRAMES/重试次数/关键词开关 + 保存 + 连通性测试；按 mockup 原型实现
 
 **✅ 阶段 6 验证清单（每个页面合并前各自过一遍）**
 - [ ] 页面在 dev 环境对接真实后端，所有按钮/表单/筛选实际操作成功
