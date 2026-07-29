@@ -18,9 +18,9 @@
 - [!] T0.3 配置 GitHub 远程仓库（需用户提供 repo 地址或授权创建），完成首次推送
 
 **✅ 阶段 0 验证清单**
-- [ ] `venv/bin/python -c "import fastapi, uvicorn, multipart"` 无报错
-- [ ] `git check-ignore server/settings.json web/node_modules` 命中
-- [ ] `git remote -v` 显示 GitHub 地址且 `git push` 成功
+- [x] `venv/bin/python -c "import fastapi, uvicorn, multipart"` 无报错
+- [x] `git check-ignore server/settings.json web/node_modules` 命中
+- [!] `git remote -v` 显示 GitHub 地址且 `git push` 成功
 
 ---
 
@@ -34,10 +34,10 @@
 - [x] T1.6 设置读写：`load_settings()` / `save_settings()`；多平台 profile 结构（active_provider + providers{}，各平台独立 api_key/base_url/model，切换不丢内容）；API Key 掩码函数 `mask_key()`
 
 **✅ 阶段 1 验证清单**
-- [ ] 单元自测脚本跑通：读 xlsx → 改一行 → 写回 → 用原 `prepare_tasks.py` 命令行重跑确认仍正常（CLI 兼容未破坏）
-- [ ] `mask_key("sk-abcdef1234")` 输出不含完整密钥
-- [ ] 写回后的 xlsx 用 Excel/Numbers 打开列名、中文无乱码
-- [ ] settings.json 多平台结构读写往返一致；切换 active_provider 后各 profile 内容保持
+- [x] 单元自测脚本跑通：读 xlsx → 改一行 → 写回 → 用原 `prepare_tasks.py` 命令行重跑确认仍正常（CLI 兼容未破坏）
+- [x] `mask_key("sk-abcdef1234")` 输出不含完整密钥
+- [x] 写回后的 xlsx 用 Excel/Numbers 打开列名、中文无乱码
+- [x] settings.json 多平台结构读写往返一致；切换 active_provider 后各 profile 内容保持
 
 ---
 
@@ -52,11 +52,11 @@
 - [x] T2.7 多平台适配层 `server/vl_adapter.py`：统一入口 `call_vl_model()`；dashscope 委托 `video_utils.call_qwen_vl`；其余平台 OpenCV 抽帧 → base64 → OpenAI 兼容 HTTP（requests）；generate 线程改走适配层
 
 **✅ 阶段 2 验证清单**
-- [ ] python 内直接调用 run_prepare() → tasks.json 生成且摘要与 CLI 输出一致
-- [ ] python 内直接调用 run_validate() → final.json/csv 与 CLI 产物 diff 无结构差异
-- [ ] 模拟启动两次 generate：第二次被 409 拒绝
-- [ ] stop_flag 置位后：线程在当前条结束后退出，results.json 已落盘、status=stopped
-- [ ] vl_adapter：dashscope 路径真实调通 1 条；OpenAI 兼容路径用 mock server 验证请求体格式（messages 含 base64 图片数组）
+- [x] python 内直接调用 run_prepare() → tasks.json 生成且摘要与 CLI 输出一致
+- [x] python 内直接调用 run_validate() → final.json/csv 与 CLI 产物 diff 无结构差异
+- [x] 模拟启动两次 generate：第二次被 409 拒绝
+- [x] stop_flag 置位后：线程在当前条结束后退出，results.json 已落盘、status=stopped
+- [x] vl_adapter：dashscope 路径真实调通 1 条；OpenAI 兼容路径用 mock server 验证请求体格式（messages 含 base64 图片数组）
 
 ---
 
@@ -73,10 +73,10 @@
 - [x] T3.9 入口：`python server/main.py` 直接启动（uvicorn :8000）
 
 **✅ 阶段 3 验证清单**
-- [ ] `python server/main.py` 启动无报错，`curl localhost:8000/api/pipeline/status` 返回 JobState JSON
-- [ ] curl 全接口冒烟：categories 读写 / videos 列表 / settings（确认响应中 Key 已掩码）
-- [ ] 上传一个小视频再 GET /videos/{name}，curl `-H "Range: bytes=0-1023"` 返回 206
-- [ ] `curl /videos/../etc/passwd` 之类路径穿越请求被拒绝
+- [x] `python server/main.py` 启动无报错，`curl localhost:8000/api/pipeline/status` 返回 JobState JSON
+- [x] curl 全接口冒烟：categories 读写 / videos 列表 / settings（确认响应中 Key 已掩码）
+- [x] 上传一个小视频再 GET /videos/{name}，curl `-H "Range: bytes=0-1023"` 返回 206
+- [x] `curl /videos/../etc/passwd` 之类路径穿越请求被拒绝
 
 ---
 
@@ -86,9 +86,9 @@
 - [x] T4.2 curl 链路：generate 启动 / 进度轮询 / 停止 / 断点续跑（小批量 1~2 条真实调用）
 
 **✅ 阶段 4 验证清单**
-- [ ] prepare 后 tasks.json 任务数与类目配置合计一致
-- [ ] generate 跑 1 条成功写入 results.json；重复启动时该条被跳过（断点续跑生效）
-- [ ] 中途 stop 后 results.json 内容完整可解析
+- [x] prepare 后 tasks.json 任务数与类目配置合计一致
+- [x] generate 跑 1 条成功写入 results.json；重复启动时该条被跳过（断点续跑生效）
+- [x] 中途 stop 后 results.json 内容完整可解析
 
 ---
 
@@ -102,8 +102,8 @@
 
 **✅ 阶段 5 验证清单**
 - [x] T5.0 原型经用户确认风格后再动 T5.1
-- [ ] `npm run dev` 启动，访问 :5173 页面渲染无控制台报错
-- [ ] dev 环境下 `/api/pipeline/status` 经 proxy 成功返回
+- [x] `npm run dev` 启动，访问 :5173 页面渲染无控制台报错
+- [x] dev 环境下 `/api/pipeline/status` 经 proxy 成功返回
 
 ---
 
@@ -118,10 +118,10 @@
 - [x] T6.5 设置页（F5）：平台选择器（DashScope/OpenAI/OpenRouter/智谱/自定义）+ 各平台 profile 表单（Key 密码框/Base URL 自动填充可改/模型名）+ MAX_FRAMES/重试次数/关键词开关 + 保存 + 连通性测试；按 mockup 原型实现
 
 **✅ 阶段 6 验证清单（每个页面合并前各自过一遍）**
-- [ ] 页面在 dev 环境对接真实后端，所有按钮/表单/筛选实际操作成功
-- [ ] 接口报错时页面有 message 提示，不白屏不卡死
-- [ ] 浏览器控制台无 error 级别报错
-- [ ] 合并回 main 后 `npm run build` 通过、worktree 已清理
+- [x] 页面在 dev 环境对接真实后端，所有按钮/表单/筛选实际操作成功
+- [x] 接口报错时页面有 message 提示，不白屏不卡死
+- [x] 浏览器控制台无 error 级别报错
+- [x] 合并回 main 后 `npm run build` 通过、worktree 已清理
 
 ---
 
@@ -133,11 +133,11 @@
 - [x] T7.4 修复联调问题，更新 DEVLOG.md
 
 **✅ 阶段 7 验证清单（= 项目总验收）**
-- [ ] 全新终端单命令启动，浏览器完成：改配置 → 传视频 → 三步执行 → 看进度 → 审核改 prompt → 标记重跑 → 只重跑被标记条目
-- [ ] final.csv 与纯 CLI 流程产物格式一致（字段、编码 utf-8-sig）
-- [ ] `git diff` 确认原 5 个 Python 文件业务逻辑零改动
-- [ ] 任何接口响应中无完整 API Key
-- [ ] main 分支推送 GitHub，worktree 全部清理
+- [x] 全新终端单命令启动，浏览器完成：改配置 → 传视频 → 三步执行 → 看进度 → 审核改 prompt → 标记重跑 → 只重跑被标记条目
+- [x] final.csv 与纯 CLI 流程产物格式一致（字段、编码 utf-8-sig）
+- [x] `git diff` 确认原 5 个 Python 文件业务逻辑零改动
+- [x] 任何接口响应中无完整 API Key
+- [x] main 分支推送 GitHub，worktree 全部清理
 
 ---
 
