@@ -38,6 +38,39 @@ tasks.json / results.json|csv / final.json|csv   # 流水线产物
 - "标记重跑" = 从 results.json 删除对应条目，下轮 generate 自动补跑
 - results.json 只有 generate 线程可写；generate 运行中接口层要防重入（409）
 
+## 开发流程（git worktree 并行隔离）
+
+- 项目已 init git（main 分支）；GitHub 远程在阶段 0 T0.3 配置
+- **并行任务必须用 worktree 隔离**，每个独立任务一个 worktree：
+  ```bash
+  git worktree add ../vqa-web-feat-dashboard -b feat/page-dashboard
+  # 在该目录开发、自测 → 回主目录合并：
+  git merge feat/page-dashboard
+  git worktree remove ../vqa-web-feat-dashboard && git branch -d feat/page-dashboard
+  ```
+- 开发完成合并回 main 后**立即清理 worktree 和分支**，不允许长期悬挂
+- 串行任务（阶段 0~5、阶段 7）直接在 main 开发，不建 worktree
+
+## 工作流（每次动工必须遵守）
+
+1. **动工前先读 `todo.md`**，找到当前阶段和下一个未完成任务
+2. **按 todo.md 顺序执行，不要跳阶段**；上一阶段验证清单没过完，不进入下一阶段
+3. 每完成一步子任务：**先跑该阶段的「验证清单」→ 确认全部通过 → 勾选 `[x]` → 再读下一步**
+4. **验证不通过：修好再继续，不允许跳过验证直接勾选**
+5. 每完成一个阶段后的固定动作：
+   - 更新 `DEVLOG.md`（状态/完成/踩坑/决策/下一步）
+   - 运行 neat-freak 同步文档和记忆
+   - commit 并推送 GitHub
+
+## 失败处理与降级
+
+- 同一问题**最多重试 3 次**，且**每次必须换思路**（换方案/换库/换路径），不要硬试同一个方法
+- 3 次后仍失败：
+  1. 该任务在 todo.md 标记 `[!]` ⚠️ 阻塞，注明原因
+  2. 先做同阶段中**不依赖它**的其他任务
+  3. 如果它阻塞了整个阶段（后续全依赖它），**停止并向用户报告**：卡在哪、试过哪 3 种方法、建议的解决方案，等用户决策
+- 禁止：跳过失败任务假装完成、删除验证清单条目、为通过验证而改验证标准
+
 ## 常用命令
 
 ```bash

@@ -1,0 +1,470 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>VQA 评测数据工作台 — 设计原型</title>
+<style>
+  :root {
+    --primary: #1677ff;
+    --primary-light: #e6f4ff;
+    --success: #52c41a;
+    --warning: #faad14;
+    --error: #ff4d4f;
+    --text: rgba(0,0,0,.88);
+    --text-2: rgba(0,0,0,.45);
+    --border: #f0f0f0;
+    --bg: #f5f6fa;
+    --card: #ffffff;
+    --radius: 10px;
+    --shadow: 0 1px 2px rgba(0,0,0,.03), 0 4px 16px rgba(0,0,0,.06);
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
+    background: var(--bg); color: var(--text); font-size: 14px;
+  }
+  /* ===== 布局 ===== */
+  .layout { display: flex; min-height: 100vh; }
+  .sider {
+    width: 220px; background: #001529; color: rgba(255,255,255,.65);
+    position: fixed; top: 0; bottom: 0; left: 0; z-index: 10;
+    display: flex; flex-direction: column;
+  }
+  .logo {
+    height: 60px; display: flex; align-items: center; gap: 10px;
+    padding: 0 20px; color: #fff; font-size: 16px; font-weight: 600;
+    border-bottom: 1px solid rgba(255,255,255,.08);
+  }
+  .logo-badge {
+    width: 30px; height: 30px; border-radius: 8px; background: var(--primary);
+    display: flex; align-items: center; justify-content: center; font-size: 15px;
+  }
+  .menu { padding: 12px 8px; flex: 1; }
+  .menu-item {
+    display: flex; align-items: center; gap: 10px; padding: 11px 14px;
+    border-radius: 8px; cursor: pointer; margin-bottom: 4px;
+    transition: all .2s; font-size: 14px;
+  }
+  .menu-item:hover { color: #fff; background: rgba(255,255,255,.06); }
+  .menu-item.active { color: #fff; background: var(--primary); }
+  .sider-foot { padding: 16px 20px; font-size: 12px; color: rgba(255,255,255,.35); border-top: 1px solid rgba(255,255,255,.08); }
+
+  .main { flex: 1; margin-left: 220px; display: flex; flex-direction: column; }
+  /* ===== 顶部流水线状态条 ===== */
+  .topbar {
+    height: 60px; background: var(--card); border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; padding: 0 24px; gap: 16px;
+    position: sticky; top: 0; z-index: 5;
+  }
+  .topbar-title { font-size: 16px; font-weight: 600; margin-right: auto; }
+  .pipe { display: flex; align-items: center; gap: 6px; font-size: 13px; }
+  .pipe-node {
+    display: flex; align-items: center; gap: 6px; padding: 4px 12px;
+    border-radius: 20px; background: #f5f5f5; color: var(--text-2);
+  }
+  .pipe-node.done { background: #f6ffed; color: var(--success); }
+  .pipe-node.running { background: var(--primary-light); color: var(--primary); }
+  .pipe-node .dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+  .pipe-node.running .dot { animation: blink 1s infinite; }
+  @keyframes blink { 50% { opacity: .3; } }
+  .pipe-arrow { color: #d9d9d9; }
+
+  .content { padding: 20px 24px 40px; }
+  .page { display: none; }
+  .page.show { display: block; animation: fade .25s; }
+  @keyframes fade { from { opacity: 0; transform: translateY(6px); } }
+
+  /* ===== 通用组件 ===== */
+  .card {
+    background: var(--card); border-radius: var(--radius);
+    box-shadow: var(--shadow); padding: 20px; margin-bottom: 16px;
+  }
+  .card-title { font-size: 15px; font-weight: 600; margin-bottom: 16px; display: flex; align-items: center; gap: 8px; }
+  .card-title .sub { font-size: 12px; color: var(--text-2); font-weight: 400; }
+  .btn {
+    display: inline-flex; align-items: center; gap: 6px; padding: 6px 16px;
+    border-radius: 6px; border: 1px solid #d9d9d9; background: #fff;
+    cursor: pointer; font-size: 13px; color: var(--text); transition: all .2s;
+  }
+  .btn:hover { border-color: var(--primary); color: var(--primary); }
+  .btn.primary { background: var(--primary); border-color: var(--primary); color: #fff; }
+  .btn.primary:hover { background: #4096ff; }
+  .btn.danger { color: var(--error); border-color: #ffccc7; }
+  .btn.danger:hover { background: #fff2f0; }
+  .btn.sm { padding: 3px 10px; font-size: 12px; }
+  .tag {
+    display: inline-block; padding: 1px 8px; border-radius: 4px; font-size: 12px;
+    border: 1px solid transparent;
+  }
+  .tag.green { color: var(--success); background: #f6ffed; border-color: #b7eb8f; }
+  .tag.orange { color: #d46b08; background: #fff7e6; border-color: #ffd591; }
+  .tag.red { color: var(--error); background: #fff2f0; border-color: #ffccc7; }
+  .tag.blue { color: var(--primary); background: var(--primary-light); border-color: #91caff; }
+  .tag.gray { color: var(--text-2); background: #fafafa; border-color: #d9d9d9; }
+
+  table { width: 100%; border-collapse: collapse; }
+  th, td { padding: 10px 12px; text-align: left; border-bottom: 1px solid var(--border); font-size: 13px; }
+  th { color: var(--text-2); font-weight: 500; background: #fafafa; }
+  tr:hover td { background: #fafcff; }
+
+  .grid { display: grid; gap: 16px; }
+  .grid-4 { grid-template-columns: repeat(4, 1fr); }
+  .grid-2 { grid-template-columns: repeat(2, 1fr); }
+  @media (max-width: 1100px) { .grid-4 { grid-template-columns: repeat(2,1fr); } }
+
+  .stat-num { font-size: 28px; font-weight: 700; margin-top: 6px; }
+  .stat-label { color: var(--text-2); font-size: 13px; }
+
+  /* Stepper */
+  .steps { display: flex; align-items: flex-start; }
+  .step { flex: 1; text-align: center; position: relative; }
+  .step::before {
+    content: ""; position: absolute; top: 17px; left: -50%; width: 100%;
+    height: 2px; background: var(--border);
+  }
+  .step:first-child::before { display: none; }
+  .step.done::before, .step.running::before { background: var(--primary); }
+  .step-icon {
+    width: 36px; height: 36px; border-radius: 50%; margin: 0 auto 8px;
+    display: flex; align-items: center; justify-content: center;
+    background: #f5f5f5; color: var(--text-2); font-weight: 600;
+    position: relative; z-index: 1; border: 2px solid transparent;
+  }
+  .step.done .step-icon { background: var(--primary); color: #fff; }
+  .step.running .step-icon { background: #fff; border-color: var(--primary); color: var(--primary); }
+  .step-name { font-weight: 600; font-size: 13px; }
+  .step-desc { color: var(--text-2); font-size: 12px; margin-top: 2px; }
+
+  /* 进度与日志 */
+  .progress-track { height: 8px; background: #f0f0f0; border-radius: 4px; overflow: hidden; }
+  .progress-bar { height: 100%; width: 62%; background: linear-gradient(90deg, var(--primary), #69b1ff); border-radius: 4px; }
+  .log-box {
+    background: #0d1117; color: #7ee787; font-family: "SF Mono", Menlo, monospace;
+    font-size: 12px; border-radius: 8px; padding: 14px 16px; height: 180px;
+    overflow-y: auto; line-height: 1.9;
+  }
+  .log-box .t { color: #8b949e; }
+  .log-box .warn { color: #f0b72f; }
+
+  /* CSS 条形图 */
+  .bar-row { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; font-size: 13px; }
+  .bar-label { width: 110px; color: var(--text); flex-shrink: 0; }
+  .bar-track { flex: 1; height: 14px; background: #f5f5f5; border-radius: 7px; overflow: hidden; }
+  .bar-fill { height: 100%; border-radius: 7px; }
+  .bar-val { width: 60px; text-align: right; color: var(--text-2); flex-shrink: 0; }
+
+  /* 上传区 */
+  .dropzone {
+    border: 2px dashed #d9d9d9; border-radius: var(--radius);
+    padding: 36px; text-align: center; color: var(--text-2);
+    cursor: pointer; transition: all .2s; background: #fafafa;
+  }
+  .dropzone:hover { border-color: var(--primary); background: var(--primary-light); }
+  .dropzone .icon { font-size: 34px; margin-bottom: 8px; }
+
+  .video-thumb {
+    width: 96px; height: 54px; border-radius: 6px; background: #000;
+    display: flex; align-items: center; justify-content: center;
+    color: rgba(255,255,255,.8); font-size: 18px; cursor: pointer;
+  }
+  .checkbox { width: 15px; height: 15px; accent-color: var(--primary); }
+
+  /* 表单 */
+  .form-row { display: flex; align-items: center; margin-bottom: 18px; }
+  .form-label { width: 140px; color: var(--text); }
+  .form-label .req { color: var(--error); margin-right: 4px; }
+  .input, select.input {
+    padding: 6px 12px; border: 1px solid #d9d9d9; border-radius: 6px;
+    font-size: 13px; width: 320px; outline: none; transition: border .2s;
+  }
+  .input:focus { border-color: var(--primary); box-shadow: 0 0 0 2px rgba(22,119,255,.1); }
+  .form-hint { color: var(--text-2); font-size: 12px; margin-left: 12px; }
+  .switch {
+    width: 44px; height: 22px; border-radius: 11px; background: var(--primary);
+    position: relative; cursor: pointer;
+  }
+  .switch::after {
+    content: ""; position: absolute; width: 18px; height: 18px; border-radius: 50%;
+    background: #fff; top: 2px; right: 2px; transition: all .2s;
+  }
+
+  .filter-bar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  .editable-cell { background: #fffbe6; border-bottom: 1px dashed #faad14; cursor: text; }
+  .drawer-hint {
+    margin-top: 12px; padding: 10px 14px; background: var(--primary-light);
+    border-radius: 8px; color: var(--primary); font-size: 12px;
+  }
+  .mock-banner {
+    position: fixed; bottom: 16px; right: 16px; background: #001529; color: #fff;
+    padding: 8px 16px; border-radius: 20px; font-size: 12px; opacity: .85; z-index: 99;
+  }
+</style>
+</head>
+<body>
+<div class="layout">
+  <!-- ============ 侧边栏 ============ -->
+  <aside class="sider">
+    <div class="logo"><span class="logo-badge">🎬</span>VQA 数据工作台</div>
+    <nav class="menu">
+      <div class="menu-item active" data-page="dashboard">📊 工作台</div>
+      <div class="menu-item" data-page="category">🗂️ 类目配置</div>
+      <div class="menu-item" data-page="videos">🎞️ 视频管理</div>
+      <div class="menu-item" data-page="results">✅ 结果审核</div>
+      <div class="menu-item" data-page="settings">⚙️ 设置</div>
+    </nav>
+    <div class="sider-foot">v1.0 原型 ｜ FastAPI + React</div>
+  </aside>
+
+  <div class="main">
+    <!-- ============ 顶部流水线状态条 ============ -->
+    <header class="topbar">
+      <span class="topbar-title" id="pageTitle">工作台</span>
+      <div class="pipe">
+        <span class="pipe-node done"><span class="dot"></span>① 准备 150 条</span>
+        <span class="pipe-arrow">→</span>
+        <span class="pipe-node running"><span class="dot"></span>② 生成中 93/150</span>
+        <span class="pipe-arrow">→</span>
+        <span class="pipe-node"><span class="dot"></span>③ 校验</span>
+      </div>
+      <button class="btn sm">⏹ 停止</button>
+    </header>
+
+    <div class="content">
+
+      <!-- ============ 页面 1：工作台 ============ -->
+      <section class="page show" id="page-dashboard">
+        <div class="card">
+          <div class="card-title">流水线 <span class="sub">三步生成 VQA 评测数据集，断点续跑已启用</span></div>
+          <div class="steps">
+            <div class="step done">
+              <div class="step-icon">✓</div>
+              <div class="step-name">① 准备任务</div>
+              <div class="step-desc">150 条任务 · 5 个视频</div>
+            </div>
+            <div class="step running">
+              <div class="step-icon">2</div>
+              <div class="step-name">② 生成数据</div>
+              <div class="step-desc">进行中 · 约需 25 分钟</div>
+            </div>
+            <div class="step">
+              <div class="step-icon">3</div>
+              <div class="step-name">③ 校验结果</div>
+              <div class="step-desc">等待上一步完成</div>
+            </div>
+          </div>
+          <div style="display:flex; gap:10px; margin-top:20px; justify-content:center;">
+            <button class="btn">↻ 重新准备</button>
+            <button class="btn primary">▶ 继续生成（断点续跑：跳过 92 条）</button>
+            <button class="btn" disabled style="opacity:.5">开始校验</button>
+          </div>
+        </div>
+
+        <div class="grid grid-2">
+          <div class="card">
+            <div class="card-title">生成进度 <span class="sub">当前: VQA_00093 / video_3.mp4 · 时序推理</span></div>
+            <div style="display:flex; justify-content:space-between; font-size:13px; margin-bottom:6px;">
+              <span>93 / 150 条</span><span style="color:var(--primary); font-weight:600;">62%</span>
+            </div>
+            <div class="progress-track"><div class="progress-bar"></div></div>
+            <div style="margin-top:16px;" class="log-box">
+              <div><span class="t">17:32:01</span> VQA_00091 ✓ 正常 · 动作识别/人物动作</div>
+              <div><span class="t">17:32:19</span> VQA_00092 ✓ 正常 · 场景理解/室内场景</div>
+              <div><span class="t">17:32:41</span> <span class="warn">VQA_00092b ⚠ JSON 解析失败，第 1 次重试…</span></div>
+              <div><span class="t">17:32:58</span> VQA_00092b ✓ 正常 · 时序推理/因果推理</div>
+              <div><span class="t">17:33:02</span> 进度已自动保存（每 5 条）</div>
+              <div><span class="t">17:33:20</span> VQA_00093 抽帧 64/64 · 调用 qwen3.6-plus…</div>
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-title">数据集概况</div>
+            <div class="grid grid-4" style="gap:10px;">
+              <div><div class="stat-label">总任务</div><div class="stat-num">150</div></div>
+              <div><div class="stat-label" style="color:var(--success);">正常</div><div class="stat-num" style="color:var(--success);">88</div></div>
+              <div><div class="stat-label" style="color:var(--warning);">需复核</div><div class="stat-num" style="color:var(--warning);">5</div></div>
+              <div><div class="stat-label" style="color:var(--text-2);">待生成</div><div class="stat-num" style="color:var(--text-2);">57</div></div>
+            </div>
+            <div style="margin-top:18px;">
+              <div class="bar-row"><span class="bar-label">动作识别</span><div class="bar-track"><div class="bar-fill" style="width:80%;background:#1677ff;"></div></div><span class="bar-val">50 条</span></div>
+              <div class="bar-row"><span class="bar-label">场景理解</span><div class="bar-track"><div class="bar-fill" style="width:60%;background:#2fc25b;"></div></div><span class="bar-val">45 条</span></div>
+              <div class="bar-row"><span class="bar-label">时序推理</span><div class="bar-track"><div class="bar-fill" style="width:33%;background:#faad14;"></div></div><span class="bar-val">25 条</span></div>
+              <div class="bar-row"><span class="bar-label">属性识别</span><div class="bar-track"><div class="bar-fill" style="width:16%;background:#722ed1;"></div></div><span class="bar-val">20 条</span></div>
+              <div class="bar-row"><span class="bar-label">事件理解</span><div class="bar-track"><div class="bar-fill" style="width:13%;background:#eb2f96;"></div></div><span class="bar-val">10 条</span></div>
+            </div>
+            <div style="margin-top:14px; font-size:12px; color:var(--text-2);">难度分布：简单 30% · 中等 40% · 困难 30%</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ 页面 2：类目配置 ============ -->
+      <section class="page" id="page-category">
+        <div class="card">
+          <div class="card-title">类目配置 <span class="sub">写回 category_config.xlsx · 带 ✦ 的一级类目有内置引导语，生成质量更稳</span>
+            <span style="margin-left:auto;" class="tag blue">合计 150 条任务</span>
+          </div>
+          <table>
+            <thead><tr><th style="width:50px;">#</th><th>一级类目</th><th>二级类目</th><th style="width:120px;">数量</th><th style="width:140px;">操作</th></tr></thead>
+            <tbody>
+              <tr><td>1</td><td>动作识别 <span class="tag blue">✦ 内置</span></td><td>人物动作</td><td class="editable-cell">30</td><td><button class="btn sm danger">删除</button></td></tr>
+              <tr><td>2</td><td>动作识别 <span class="tag blue">✦ 内置</span></td><td>物体运动</td><td class="editable-cell">20</td><td><button class="btn sm danger">删除</button></td></tr>
+              <tr><td>3</td><td>场景理解 <span class="tag blue">✦ 内置</span></td><td>室内场景</td><td class="editable-cell">25</td><td><button class="btn sm danger">删除</button></td></tr>
+              <tr><td>4</td><td>时序推理 <span class="tag blue">✦ 内置</span></td><td>因果推理</td><td class="editable-cell">15</td><td><button class="btn sm danger">删除</button></td></tr>
+              <tr><td>5</td><td>属性识别 <span class="tag blue">✦ 内置</span></td><td>颜色识别</td><td class="editable-cell">10</td><td><button class="btn sm danger">删除</button></td></tr>
+              <tr><td>6</td><td>情感识别 <span class="tag gray">未内置</span></td><td>表情判断</td><td class="editable-cell">50</td><td><button class="btn sm danger">删除</button></td></tr>
+            </tbody>
+          </table>
+          <div style="margin-top:14px; display:flex; gap:10px;">
+            <button class="btn">＋ 添加一行</button>
+            <button class="btn primary">💾 保存配置</button>
+          </div>
+          <div class="drawer-hint">💡「情感识别」未在 prompt_templates.py 内置，将使用默认引导语且跳过关键词校验。需要精准生成可先在模板中扩展该类目。</div>
+        </div>
+
+        <div class="card">
+          <div class="card-title">难度权重 <span class="sub">三项之和须等于 100%</span></div>
+          <div style="display:flex; gap:24px; align-items:center;">
+            <div class="form-row" style="margin:0;"><span class="form-label" style="width:70px;">简单</span><input class="input" style="width:90px;" value="30%"></div>
+            <div class="form-row" style="margin:0;"><span class="form-label" style="width:70px;">中等</span><input class="input" style="width:90px;" value="40%"></div>
+            <div class="form-row" style="margin:0;"><span class="form-label" style="width:70px;">困难</span><input class="input" style="width:90px;" value="30%"></div>
+            <span class="tag green">✓ 合计 100%</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ 页面 3：视频管理 ============ -->
+      <section class="page" id="page-videos">
+        <div class="card">
+          <div class="dropzone">
+            <div class="icon">📤</div>
+            <div style="font-size:15px; color:var(--text);">点击或拖拽视频到此处上传</div>
+            <div style="margin-top:4px;">支持 mp4 / avi / mov / mkv / webm，多文件上传</div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-title">视频库 <span class="sub">videos/ 目录 · 勾选后写入 video_list.xlsx</span>
+            <span style="margin-left:auto; display:flex; gap:10px;">
+              <button class="btn sm">全选</button><button class="btn sm primary">💾 保存清单（4/5）</button>
+            </span>
+          </div>
+          <table>
+            <thead><tr><th style="width:40px;">参与</th><th>预览</th><th>文件名</th><th>时长</th><th>大小</th><th>状态</th><th style="width:150px;">操作</th></tr></thead>
+            <tbody>
+              <tr><td><input type="checkbox" class="checkbox" checked></td><td><div class="video-thumb">▶</div></td><td>video_1.mp4</td><td>00:00:45</td><td>3.5 MB</td><td><span class="tag green">已使用 · 12 条</span></td><td><button class="btn sm">播放</button> <button class="btn sm danger">删除</button></td></tr>
+              <tr><td><input type="checkbox" class="checkbox" checked></td><td><div class="video-thumb">▶</div></td><td>video_2.mp4</td><td>00:02:10</td><td>17.4 MB</td><td><span class="tag green">已使用 · 31 条</span></td><td><button class="btn sm">播放</button> <button class="btn sm danger">删除</button></td></tr>
+              <tr><td><input type="checkbox" class="checkbox" checked></td><td><div class="video-thumb">▶</div></td><td>video_3.mp4</td><td>00:01:35</td><td>13.6 MB</td><td><span class="tag green">已使用 · 30 条</span></td><td><button class="btn sm">播放</button> <button class="btn sm danger">删除</button></td></tr>
+              <tr><td><input type="checkbox" class="checkbox" checked></td><td><div class="video-thumb">▶</div></td><td>video_4.mp4</td><td>00:00:58</td><td>4.5 MB</td><td><span class="tag green">已使用 · 30 条</span></td><td><button class="btn sm">播放</button> <button class="btn sm danger">删除</button></td></tr>
+              <tr><td><input type="checkbox" class="checkbox"></td><td><div class="video-thumb">▶</div></td><td>video_5.mp4</td><td>00:03:42</td><td>43.2 MB</td><td><span class="tag gray">未参与</span></td><td><button class="btn sm">播放</button> <button class="btn sm danger">删除</button></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- ============ 页面 4：结果审核 ============ -->
+      <section class="page" id="page-results">
+        <div class="card">
+          <div class="filter-bar">
+            <select class="input" style="width:150px;"><option>数据源：results</option><option>数据源：final</option></select>
+            <select class="input" style="width:130px;"><option>校验结果：全部</option><option>通过</option><option>需复核</option><option>需重生成</option></select>
+            <select class="input" style="width:130px;"><option>类目：全部</option><option>动作识别</option><option>场景理解</option><option>时序推理</option></select>
+            <select class="input" style="width:110px;"><option>难度：全部</option><option>简单</option><option>中等</option><option>困难</option></select>
+            <input class="input" style="width:200px;" placeholder="🔍 搜索 prompt / 答案关键词">
+            <span style="margin-left:auto; display:flex; gap:8px;">
+              <button class="btn sm">↻ 标记重跑（2）</button>
+              <button class="btn sm danger">删除（2）</button>
+              <button class="btn sm primary">⬇ 导出 CSV</button>
+            </span>
+          </div>
+        </div>
+        <div class="card">
+          <table>
+            <thead><tr><th style="width:36px;"><input type="checkbox" class="checkbox"></th><th>data_id</th><th>类目</th><th>视频</th><th style="width:30%;">prompt</th><th>难度</th><th>校验结果</th><th style="width:130px;">操作</th></tr></thead>
+            <tbody>
+              <tr>
+                <td><input type="checkbox" class="checkbox"></td><td>VQA_00001</td><td>动作识别/人物动作</td><td>video_1.mp4</td>
+                <td>视频中穿红色衣服的人在进入房间后做了哪些动作？</td>
+                <td><span class="tag blue">中等</span></td><td><span class="tag green">通过</span></td>
+                <td><button class="btn sm">审核</button></td>
+              </tr>
+              <tr>
+                <td><input type="checkbox" class="checkbox" checked></td><td>VQA_00007</td><td>场景理解/室内场景</td><td>video_2.mp4</td>
+                <td>视频中房间里有什么？</td>
+                <td><span class="tag green">简单</span></td><td><span class="tag orange">需复核</span></td>
+                <td><button class="btn sm">审核</button></td>
+              </tr>
+              <tr>
+                <td><input type="checkbox" class="checkbox" checked></td><td>VQA_00012</td><td>时序推理/因果推理</td><td>video_3.mp4</td>
+                <td style="color:var(--text-2);">（prompt 为空）</td>
+                <td><span class="tag gray">—</span></td><td><span class="tag red">需重生成</span></td>
+                <td><button class="btn sm">审核</button></td>
+              </tr>
+              <tr>
+                <td><input type="checkbox" class="checkbox"></td><td>VQA_00015</td><td>属性识别/颜色识别</td><td>video_4.mp4</td>
+                <td>视频中出现的小汽车是什么颜色的？</td>
+                <td><span class="tag green">简单</span></td><td><span class="tag green">通过</span></td>
+                <td><button class="btn sm">审核</button></td>
+              </tr>
+            </tbody>
+          </table>
+          <div class="drawer-hint">💡 点击「审核」打开侧滑面板：左侧播放对应视频，右侧查看/编辑 prompt 与参考答案，改完即存。勾选「需复核/需重生成」条目 →「标记重跑」，下轮生成只补跑这些条目。</div>
+        </div>
+      </section>
+
+      <!-- ============ 页面 5：设置 ============ -->
+      <section class="page" id="page-settings">
+        <div class="card" style="max-width:640px;">
+          <div class="card-title">模型与生成设置 <span class="sub">保存后立即生效，无需重启</span></div>
+          <div class="form-row">
+            <span class="form-label"><span class="req">*</span>DashScope API Key</span>
+            <input class="input" type="password" value="sk-your-api-key-here">
+            <span class="form-hint">仅存本地 server/settings.json</span>
+          </div>
+          <div class="form-row">
+            <span class="form-label">模型名称</span>
+            <input class="input" value="qwen3.6-plus">
+            <span class="form-hint">如 qwen-vl-max 等</span>
+          </div>
+          <div class="form-row">
+            <span class="form-label">最大抽帧数</span>
+            <input class="input" value="64" style="width:120px;">
+            <span class="form-hint">帧数越多越准但越慢越贵</span>
+          </div>
+          <div class="form-row">
+            <span class="form-label">失败重试次数</span>
+            <input class="input" value="2" style="width:120px;">
+          </div>
+          <div class="form-row">
+            <span class="form-label">关键词校验</span>
+            <div class="switch"></div>
+            <span class="form-hint">校验 prompt 与类目关键词是否匹配</span>
+          </div>
+          <div style="margin-top:24px; display:flex; gap:10px;">
+            <button class="btn primary">💾 保存设置</button>
+            <button class="btn">测试 API 连通性</button>
+          </div>
+        </div>
+      </section>
+
+    </div>
+  </div>
+</div>
+
+<div class="mock-banner">设计原型 v1.0 · 数据为示例 · 点击左侧菜单切换页面</div>
+
+<script>
+  const titles = {
+    dashboard: "工作台", category: "类目配置", videos: "视频管理",
+    results: "结果审核", settings: "设置"
+  };
+  document.querySelectorAll(".menu-item").forEach(item => {
+    item.addEventListener("click", () => {
+      document.querySelectorAll(".menu-item").forEach(i => i.classList.remove("active"));
+      item.classList.add("active");
+      const key = item.dataset.page;
+      document.querySelectorAll(".page").forEach(p => p.classList.remove("show"));
+      document.getElementById("page-" + key).classList.add("show");
+      document.getElementById("pageTitle").textContent = titles[key];
+    });
+  });
+</script>
+</body>
+</html>
