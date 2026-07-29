@@ -4,7 +4,7 @@
 
 ## 项目一句话
 
-基于 Qwen VL 的视频 VQA 评测数据批量构建工具。原为三步 CLI（prepare → generate → validate），正在改造为 FastAPI + React(Ant Design) 的 Web 可视化工作台。需求与验收标准见 `spec.md`，任务拆解见 `todo.md`，进展记录见 `DEVLOG.md`。
+基于 Qwen VL 的视频 VQA 评测数据批量构建工具。原为三步 CLI（prepare → generate → validate），**已改造为 FastAPI + React(Ant Design) 的 Web 可视化工作台**（2026-07-29 交付），CLI 保持可用。需求与验收标准见 `spec.md`，任务拆解见 `todo.md`，进展记录见 `DEVLOG.md`。
 
 ## 目录结构
 
@@ -14,8 +14,8 @@ generate_vqa.py       # 步骤②：tasks.json → 调 Qwen VL → results.json/
 validate.py           # 步骤③：results.json → 校验 → final.json/csv（不调模型）
 prompt_templates.py   # Prompt 模板 + CATEGORY_GUIDES 类目引导语映射（扩展类目改这里）
 video_utils.py        # OpenCV 视频信息/抽帧 + DashScope API 封装
-server/               # 【新增】FastAPI 后端：main.py(路由) / store.py(读写) / jobs.py(后台任务)
-web/                  # 【新增】React + Vite + AntD 前端，src/pages/ 五个页面
+server/               # FastAPI 后端：main.py(路由+SPA托管) / store.py(读写) / jobs.py(后台任务) / vl_adapter.py(多平台模型适配)
+web/                  # React + Vite + AntD 前端，src/pages/ 五个页面
 videos/               # 视频文件
 category_config.xlsx  # 类目配置（一级类目/二级类目/数量）
 video_list.xlsx       # 参与评测的视频文件名清单
@@ -37,6 +37,8 @@ tasks.json / results.json|csv / final.json|csv   # 流水线产物
 - 断点续跑沿用 generate_vqa 的 fingerprint 机制（data_id+视频+类目 匹配才跳过）
 - "标记重跑" = 从 results.json 删除对应条目，下轮 generate 自动补跑
 - results.json 只有 generate 线程可写；generate 运行中接口层要防重入（409）
+- 多平台模型调用走 `server/vl_adapter.py`：dashscope 委托 `video_utils.call_qwen_vl`，其余平台抽帧+base64+OpenAI 兼容 HTTP；通过模块属性注入 `generate_vqa.call_qwen_vl` 生效，不改原文件
+- 设置存 `server/settings.json`：多平台 profile 结构（active_provider + providers{}），各平台 Key/URL/模型独立保存
 
 ## 开发流程（git worktree 并行隔离）
 
@@ -101,5 +103,7 @@ video_list.xlsx ──────┘                              ↑ 每条5~3
 ## 代码风格
 
 - Python：与原文件风格一致 —— 模块顶部中文 docstring、配置区集中、函数带中文 docstring、print 输出中文进度
+- 写 xlsx 必须 `index=False`（否则多出 Unnamed: 0 列，CLI 读入列名识别报错）
+- 读写 xlsx/json/settings 统一走 `server/store.py`，路由层不许直接碰 pandas
 - 前端：函数组件 + Hooks；接口调用统一走 `src/api.js`；错误统一 `message.error`
 - 注释用中文；提交前更新 todo.md 状态并写 DEVLOG.md
