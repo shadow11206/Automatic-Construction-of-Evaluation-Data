@@ -2,10 +2,57 @@
 
 基于 Qwen VL 多模态大模型，从视频文件批量生成 VQA（Video Question Answering）评测数据集。支持自定义类目体系、难度分层、断点续跑和自动校验。
 
+**两种使用方式**：
+- **Web 工作台（推荐）**：浏览器内完成全部操作，见下方 [Web 界面](#web-界面推荐) 章节
+- **命令行（CLI）**：适合脚本化/批处理场景，见 [快速上手](#快速上手5-分钟)
+
+---
+
+## Web 界面（推荐）
+
+### 启动
+
+```bash
+# 1. 安装后端依赖（首次）
+pip install -r requirements.txt
+
+# 2. 启动（前端已内置，无需额外操作）
+python server/main.py
+```
+
+浏览器打开 **http://localhost:8000** 即可使用。
+
+### 页面功能
+
+| 页面 | 功能 |
+|------|------|
+| 工作台 | 三步流水线一键执行、实时进度条、滚动日志、断点续跑提示、数据集统计 |
+| 类目配置 | 可视化编辑类目/数量（替代手改 Excel）、内置类目提示、难度权重调节 |
+| 视频管理 | 拖拽上传、在线预览播放、勾选参与评测、删除（引用警告） |
+| 结果审核 | 多维筛选、边播视频边审核、在线改 prompt/答案、批量标记重跑/删除 |
+| 设置 | 多平台 API Key（DashScope/OpenAI/OpenRouter/智谱/自定义）、模型、抽帧数、连通性测试 |
+
+### 前端开发（可选）
+
+仅在需要修改前端代码时：
+
+```bash
+cd web
+npm install
+npm run dev      # 开发模式 :5173，自动代理 API 到 :8000
+npm run build    # 构建到 web/dist，由后端托管
+```
+
+### 多平台 API 说明
+
+- **DashScope**：原生视频理解，效果最佳（与 CLI 相同的调用链路）
+- **其他平台**（OpenAI/OpenRouter/智谱/自定义 OpenAI 兼容接口）：自动转为「抽帧 + 图片」方式调用，效果取决于所选模型的多模态能力
+
 ---
 
 ## 目录
 
+- [Web 界面（推荐）](#web-界面推荐)
 - [项目结构](#项目结构)
 - [环境要求](#环境要求)
 - [快速上手（5 分钟）](#快速上手5-分钟)
@@ -39,8 +86,16 @@
 ├── prompt_templates.py     # Prompt 模板 + 类目引导语映射表（高级用户扩展用）
 ├── video_utils.py          # 视频帧提取 + Qwen VL API 调用封装（无需修改）
 │
-├── category_config.xlsx    # ← 你填写：什么类目 × 各生成多少条
-├── video_list.xlsx         # ← 你填写：用哪些视频
+├── server/                 # Web 后端（FastAPI）
+│   ├── main.py             #   入口：API 路由 + 静态托管前端
+│   ├── store.py            #   数据读写层（xlsx/json/settings）
+│   ├── jobs.py             #   后台任务执行器（进度/断点续跑/停止）
+│   └── vl_adapter.py       #   多平台模型调用适配层
+├── web/                    # Web 前端（React + Ant Design）
+│   └── src/pages/          #   工作台/类目配置/视频管理/结果审核/设置
+│
+├── category_config.xlsx    # ← 你填写：什么类目 × 各生成多少条（Web 界面可在线编辑）
+├── video_list.xlsx         # ← 你填写：用哪些视频（Web 界面可勾选）
 ├── videos/                 # ← 你放入：所有视频文件（mp4/avi/mov 等）
 │   ├── video_1.mp4
 │   ├── video_2.mp4

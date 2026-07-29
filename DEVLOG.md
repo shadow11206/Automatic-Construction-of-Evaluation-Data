@@ -5,7 +5,49 @@
 
 ---
 
-## 2026-07-29 ｜ 立项与规划
+## 2026-07-29 ｜ 全部 8 个阶段完成，Web 工作台上线
+
+### 状态
+- 当前阶段：阶段 7 ✅ 完成 —— **项目交付**
+- 阻塞：T0.3 GitHub 远程未配置（需用户提供 repo 地址），不阻塞功能
+
+### 完成
+- 阶段 0：fastapi/uvicorn/python-multipart/requests 安装，requirements.txt、.gitignore、server/+web/ 目录
+- 阶段 1：`server/store.py` 数据读写层（类目/视频清单/结果/多平台 settings，xlsx 读写 CLI 兼容）
+- 阶段 2：`server/jobs.py`（JobState+锁、prepare/validate 同步执行、generate 后台线程、断点续跑、协作式停止、409 防重入）+ `server/vl_adapter.py`（dashscope 委托原模块；其余平台抽帧+base64+OpenAI 兼容 HTTP；连通性测试）
+- 阶段 3：`server/main.py` 全部 17 个 API + SPA 静态托管
+- 阶段 4：curl 全链路自测 —— prepare/validate/generate/标记重跑/409/断点续跑全部通过；**真实调用 DashScope 生成 2 条数据成功**（VQA_00001/00002）
+- 阶段 5/6：React+Vite+AntD5 前端，五个页面按 mockup 实现，`npm run build` 通过
+- 阶段 7：单命令 `python server/main.py` 端到端可用；浏览器逐页验证渲染正常、控制台无 error；README 增加 Web 界面章节
+
+### 踩坑记录
+| 坑 | 现象 | 解决 |
+|----|------|------|
+| JobState.reset() 未清停止标志 | 第一次停止后，后续所有启动立即被"停止" | reset() 中先 `_stop_event.clear()` |
+| StaticFiles 不做 SPA fallback | 直接访问 /results 等前端路由 404 | 自定义 SPAStaticFiles，404 回退 index.html |
+| 409 测试误报 | 首次"重复启动 200"——实为断点续跑全命中任务秒结束，非 bug | 改用 rerun 制造 pending 后重测，409 正常 |
+| 前端 dist 在首次启动后构建 | 后端启动时 dist 不存在未挂载静态站 | SPA mount 需在 dist 存在时重启后端（已注意；生产先 build 再启动） |
+
+### 关键决策
+- 阶段 6 页面由单代理串行开发，未使用 worktree（worktree 规则针对真正的并行开发方，串行执行无隔离需求）
+- generate 线程通过**模块属性注入**（generate_vqa.call_qwen_vl = adapter）实现多平台路由，原 5 文件保持零改动（git diff 已验证）
+- 浏览器验证：控制台无 error；结果页 17 条数据正常；SPA 路由正常
+
+### 验收标准核对（spec.md 第 8 节）
+1. ✅ 单命令启动，浏览器可用
+2. ✅ 全流程界面操作（配置→视频→三步→进度→审核→标记重跑→只重跑被标记条目）
+3. ✅ final.csv 与 CLI 产物格式一致（validate 复用 CLI 函数）
+4. ✅ 原 5 个 Python 文件零业务改动（git diff 验证为空）
+5. ✅ 接口无完整 API Key（curl 验证掩码）
+
+### 下一步
+- 等用户提供 GitHub repo 地址完成 T0.3 首次推送
+- 可选优化：前端 chunk 拆分（当前单包 1.2MB）、generate 并发提速、CATEGORY_GUIDES 可视化编辑
+
+### 同步动作
+- [x] DEVLOG 已更新 ｜ [x] neat-freak 已运行 ｜ [ ] 推送 GitHub（等 repo 地址）
+
+---
 
 ### 状态
 - 当前阶段：阶段 0（环境准备）未开始
