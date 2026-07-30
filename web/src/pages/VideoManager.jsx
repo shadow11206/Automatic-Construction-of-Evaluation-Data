@@ -1,64 +1,60 @@
 import React, { useEffect, useState } from 'react'
-import { Card, Table, Button, Upload, Checkbox, Tag, Modal, Space, message, Popconfirm, Radio } from 'antd'
-import { InboxOutlined, PlayCircleOutlined, DeleteOutlined, SaveOutlined } from '@ant-design/icons'
+import { Card, Table, Button, Upload, Tag, Modal, Space, message, Popconfirm, Radio } from 'antd'
+import { InboxOutlined, PlayCircleOutlined, DeleteOutlined, SaveOutlined, ClearOutlined } from '@ant-design/icons'
 import api from '../api'
 import { usePipelineStatus } from '../App'
 
+// 视频库交互约定：
+// - 一套勾选（rowSelection）= 视频配置（参与评测的视频），初始为当前已配置清单
+// - 头部工具区：状态筛选 / 删除选中 / 清空视频配置 / 保存视频配置
 export default function VideoManager() {
   const [videos, setVideos] = useState([])
-  const [checked, setChecked] = useState(new Set())
+  const [selected, setSelected] = useState([])   // 勾选 = 视频配置
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [playing, setPlaying] = useState(null)
-  const [exportFilter, setExportFilter] = useState('all') // all / exported / unexported
-  const [selectedForDelete, setSelectedForDelete] = useState([])
+  const [filter, setFilter] = useState('all')    // all / used / unused / exported / unexported
   const { status } = usePipelineStatus()
   const running = status?.status === 'running'
-
-  // 按导出状态筛选显示
-  const shownVideos = videos.filter(v => {
-    if (exportFilter === 'exported') return v.exported_count > 0
-    if (exportFilter === 'unexported') return v.exported_count === 0
-    return true
-  })
 
   const load = async () => {
     setLoading(true)
     try {
       const res = await api.getVideos()
       setVideos(res.videos)
-      setChecked(new Set(res.videos.filter(v => v.in_list).map(v => v.name)))
+      // 勾选状态 = 当前已保存的视频配置
+      setSelected(res.videos.filter(v => v.in_list).map(v => v.name))
     } catch { /* 拦截器已提示 */ } finally {
       setLoading(false)
     }
   }
   useEffect(() => { load() }, [])
 
-  const toggle = (name) => {
-    const next = new Set(checked)
-    next.has(name) ? next.delete(name) : next.add(name)
-    setChecked(next)
-  }
-
-  const saveList = async () => {
+  const saveConfig = async () => {
     setSaving(true)
     try {
-      await api.saveVideoList([...checked])
-      message.success(`清单已保存（${checked.size} 个视频参与评测）`)
+      await api.saveVideoList(selected)
+      message.success(`视频配置已保存（${selected.length} 个视频参与评测）`)
       load()
     } catch { /* 拦截器已提示 */ } finally {
       setSaving(false)
     }
   }
 
+  const clearConfig = async () => {
+    try {
+      await api.saveVideoList([])
+      setSelected([])
+      message.success('视频配置已清空，可重新勾选配置')
+      load()
+    } catch { /* 拦截器已提示 */ }
+  }
+
   const batchDelete = async () => {
     try {
-      const res = await api.batchDeleteVideos(selectedForDelete)
-      const ok = res.deleted.length
-      const fail = res.failed.length
-      if (fail > 0) message.warning(`${fail} 个删除失败`)
-      message.success(`已删除 ${ok} 个视频`)
-      setSelectedForDelete([])
+      const res = await api.batchDeleteVideos(selected)
+      if (res.failed.length > 0) message.warning(`${res.failed.length} 个删除失败`)
+      message.success(`已删除 ${res.deleted.length} 个视频`)
       load()
     } catch { /* 拦截器已提示 */ }
   }
@@ -80,11 +76,23 @@ export default function VideoManager() {
     },
   }
 
+  const shownVideos = videos.filter(v => {
+    if (filter === 'used') return v.used_by > 0
+    if (filter === 'unused') return v.used_by === 0
+    if (filter === 'exported') return v.exported_count > 0
+    if (filter === 'unexported') return v.exported_count === 0
+    return true
+  })
+
+  const countOf = (f) => videos.filter(v => {
+    if (f === 'used') return v.used_by > 0
+    if (f === 'unused') return v.used_by === 0
+    if (f === 'exported') return v.exported_count > 0
+    if (f === 'unexported') return v.exported_count === 0
+    return true
+  }).length
+
   const columns = [
-    {
-      title: '参与', width: 60,
-      render: (_, v) => <Checkbox checked={checked.has(v.name)} onChange={() => toggle(v.name)} />,
-    },
     {
       title: '预览', width: 110,
       render: (_, v) => (
@@ -106,7 +114,7 @@ export default function VideoManager() {
       title: '状态', width: 140,
       render: (_, v) => v.used_by > 0
         ? <Tag color="green">已使用 · {v.used_by} 条</Tag>
-        : (v.in_list ? <Tag color="blue">在清单中</Tag> : <Tag>未参与</Tag>),
+        : (v.in_list ? <Tag color="blue">已配置</Tag> : <Tag>未使用</Tag>),
     },
     {
       title: '导出状态', width: 130,
@@ -144,35 +152,50 @@ export default function VideoManager() {
         style={{ marginTop: 16 }}
         title="视频库"
         extra={
-          <Space>
-            <Radio.Group size="small" value={exportFilter} onChange={(e) => setExportFilter(e.target.value)}>
+          <Space wrap>
+            <Radio.Group size="small" value={filter} onChange={(e) => setFilter(e.target.value)}>
               <Radio.Button value="all">全部（{videos.length}）</Radio.Button>
-              <Radio.Button value="exported">已导出（{videos.filter(v => v.exported_count > 0).length}）</Radio.Button>
-              <Radio.Button value="unexported">未导出（{videos.filter(v => v.exported_count === 0).length}）</Radio.Button>
+              <Radio.Button value="used">已使用（{countOf('used')}）</Radio.Button>
+              <Radio.Button value="unused">未使用（{countOf('unused')}）</Radio.Button>
+              <Radio.Button value="exported">已导出（{countOf('exported')}）</Radio.Button>
+              <Radio.Button value="unexported">未导出（{countOf('unexported')}）</Radio.Button>
             </Radio.Group>
-            <Button size="small" onClick={() => setChecked(new Set(videos.map(v => v.name)))}>全选</Button>
-            <Button size="small" onClick={() => setChecked(new Set())}>清空</Button>
-            <Button type="primary" size="small" icon={<SaveOutlined />} loading={saving} onClick={saveList}>
-              保存清单（{checked.size}/{videos.length}）
+            <Popconfirm
+              title={`确认删除勾选的 ${selected.length} 个视频？（将同时从视频配置中移除）`}
+              onConfirm={batchDelete}
+              disabled={!selected.length}
+            >
+              <Button size="small" danger icon={<DeleteOutlined />} disabled={!selected.length || running}>
+                删除选中（{selected.length}）
+              </Button>
+            </Popconfirm>
+            <Popconfirm
+              title="清空当前视频配置？（用于纠正配置错误，不会删除视频文件）"
+              onConfirm={clearConfig}
+            >
+              <Button size="small" icon={<ClearOutlined />}>清空视频配置</Button>
+            </Popconfirm>
+            <Button type="primary" size="small" icon={<SaveOutlined />} loading={saving} onClick={saveConfig}>
+              保存视频配置（{selected.length}/{videos.length}）
             </Button>
           </Space>
         }
       >
-        <Table rowKey="name" loading={loading} columns={columns} dataSource={shownVideos} pagination={false}
-          rowSelection={{ selectedRowKeys: selectedForDelete, onChange: setSelectedForDelete }}
+        <Table
+          rowKey="name"
+          loading={loading}
+          columns={columns}
+          dataSource={shownVideos}
+          pagination={false}
+          rowSelection={{
+            selectedRowKeys: selected,
+            onChange: setSelected,
+            columnTitle: '配置',
+          }}
         />
-        {selectedForDelete.length > 0 && (
-          <div style={{ marginTop: 12, display: 'flex', justifyContent: 'flex-end' }}>
-            <Popconfirm
-              title={`确认删除选中的 ${selectedForDelete.length} 个视频？`}
-              onConfirm={batchDelete}
-            >
-              <Button danger icon={<DeleteOutlined />} disabled={running}>
-                删除选中（{selectedForDelete.length}）
-              </Button>
-            </Popconfirm>
-          </div>
-        )}
+        <div style={{ marginTop: 10, fontSize: 12, color: '#999' }}>
+          勾选即视频配置：勾选后点「保存视频配置」生效；配置错误的可先「清空视频配置」再重新勾选。
+        </div>
       </Card>
 
       <Modal

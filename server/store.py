@@ -221,7 +221,7 @@ def load_video_list() -> list:
 
 
 def save_video_list(names: list) -> list:
-    """保存参与评测的视频清单（校验文件必须存在于 videos/）"""
+    """保存参与评测的视频清单（校验文件必须存在于 videos/）。允许空列表=清空视频配置。"""
     cleaned = []
     for n in names:
         n = str(n).strip()
@@ -231,8 +231,6 @@ def save_video_list(names: list) -> list:
             raise ValueError(f"视频文件不存在: {n}")
         if n not in cleaned:
             cleaned.append(n)
-    if not cleaned:
-        raise ValueError("视频清单不能为空")
     df = pd.DataFrame({"视频文件名": cleaned})
     with _lock:
         df.to_excel(VIDEO_XLSX, index=False)
