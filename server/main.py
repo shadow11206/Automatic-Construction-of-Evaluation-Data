@@ -213,8 +213,9 @@ def get_results(
     difficulty: str = "",
     verdict: str = "",
     q: str = "",
+    exported: str = Query("", pattern="^(|yes|no)$"),
 ):
-    data = _filter_results(source, cat, difficulty, verdict, q)
+    data = _filter_results(source, cat, difficulty, verdict, q, exported)
 
     # 统计信息（筛选前的全集统计，供页面卡片）
     full = store.load_results(source)
@@ -231,8 +232,11 @@ def get_results(
     }
 
 
-def _filter_results(source: str, cat: str, difficulty: str, verdict: str, q: str) -> list:
-    """结果筛选（GET /api/results 与 /api/results/export 共用）"""
+def _filter_results(source: str, cat: str, difficulty: str, verdict: str, q: str,
+                    exported: str = "") -> list:
+    """结果筛选（GET /api/results 与 /api/results/export 共用）
+    exported: "" 全部 / "yes" 仅已导出 / "no" 仅未导出
+    """
     data = store.load_results(source)
     if cat:
         data = [r for r in data if r.get("一级类目") == cat]
@@ -243,6 +247,12 @@ def _filter_results(source: str, cat: str, difficulty: str, verdict: str, q: str
         data = [r for r in data if r.get(field) == verdict]
     if q:
         data = [r for r in data if q in str(r.get("prompt", "")) or q in str(r.get("参考答案", ""))]
+    if exported in ("yes", "no"):
+        exported_ids = set(store.load_export_state().get("exported_ids", []))
+        if exported == "yes":
+            data = [r for r in data if r.get("data_id") in exported_ids]
+        else:
+            data = [r for r in data if r.get("data_id") not in exported_ids]
     return data
 
 
@@ -253,13 +263,14 @@ def export_results(
     difficulty: str = "",
     verdict: str = "",
     q: str = "",
+    exported: str = Query("", pattern="^(|yes|no)$"),
 ):
     """导出当前筛选视图为 xlsx，并记录导出状态（用于视频页已导出/未导出分辨）"""
     import io
     from datetime import datetime as _dt
     import pandas as pd
 
-    data = _filter_results(source, cat, difficulty, verdict, q)
+    data = _filter_results(source, cat, difficulty, verdict, q, exported)
     if not data:
         raise ValueError("当前筛选条件下没有可导出的数据")
 

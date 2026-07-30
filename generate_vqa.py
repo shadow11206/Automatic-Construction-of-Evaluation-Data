@@ -32,8 +32,8 @@ logger = logging.getLogger(__name__)
 # 配置区 —— 用户按需修改
 # ============================================================
 
-# DashScope API 密钥（建议用环境变量 DASHSCOPE_API_KEY）
-API_KEY = os.environ.get("DASHSCOPE_API_KEY", "***REMOVED***")
+# DashScope API 密钥（务必通过环境变量 DASHSCOPE_API_KEY 设置，勿在代码中明文填写）
+API_KEY = os.environ.get("DASHSCOPE_API_KEY", "")
 
 # 模型名称
 MODEL = "qwen3.6-plus"

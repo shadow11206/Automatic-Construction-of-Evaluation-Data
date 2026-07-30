@@ -153,3 +153,15 @@
 ```
 T0 → T1 → T2 → T3 → T4 → T5.0(原型确认) → T5.1~5.4(骨架) → T6(页面, worktree 并行) → T7(联调)
 ```
+
+---
+
+## 增量需求（2026-07-30）
+
+- [x] T8.1 安全修复：移除 generate_vqa.py 明文 API Key，迁移至 server/settings.json（本地 gitignore）；mockup 假值化；README 安全警告
+- [x] T8.2 结果审核页新增「已导出/未导出」功能筛选（后端 exported 参数 + 前端下拉，导出接口同步支持）
+
+**✅ 验证清单**
+- [x] 移除明文后后端连通性测试通过（Key 来自 settings.json），接口掩码正常
+- [x] 全仓库 grep 无完整 Key 残留
+- [x] exported=yes/no/全部 筛选条数正确；非法值 422；export 接口兼容新参数；浏览器筛选生效

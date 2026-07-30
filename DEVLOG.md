@@ -5,6 +5,42 @@
 
 ---
 
+## 2026-07-30 ｜ 安全修复（明文 Key 泄露）+ 导出状态筛选
+
+### 状态
+- 增量需求 T8.1/T8.2 ✅ 完成并已推送
+- **待用户处理：吊销已泄露的 DashScope Key**（见下方警告）
+
+### 完成
+1. **安全修复（T8.1）**：
+   - `generate_vqa.py` 明文 Key 移除，改为仅从环境变量读取
+   - Key 迁移至本地 `server/settings.json`（gitignore，不进仓库），应用功能无中断（连通性测试通过）
+   - `design/mockup.html` 中的真实 Key 前后缀改为假值
+   - README：API Key 章节新增方式 B（设置页，推荐）并加历史泄露安全警告
+2. **导出状态筛选（T8.2）**：结果审核页新增「导出：全部/已导出/未导出」下拉（功能性筛选，与"难度"等筛选可叠加）；后端 `_filter_results` 加 exported 参数，`/api/results` 与 `/api/results/export` 同步支持（可只导出"未导出"的数据）
+
+### 踩坑记录
+| 坑 | 现象 | 解决 |
+|----|------|------|
+| **明文 Key 进入公开仓库历史** | generate_vqa.py 第 36 行硬编码真实 Key，随首次 push 进入 GitHub 公开历史，删文件无法消除 | 代码移除 + 迁移 settings.json；但 git 历史仍存在 → 唯一彻底方案是用户到百炼控制台**吊销旧 Key 换新**；历史清洗+force push 可作为辅助（需用户确认） |
+| mockup 原型残留 Key 前后缀 | 设计原型密码框用了真实 Key 的前 7 后 4 字符 | 改为 `sk-your-api-key-here` 假值 |
+
+### ⚠️ 安全警告（用户必读）
+完整 Key `sk-7f89...4fe6` 已存在于 GitHub 公开仓库的 commit 历史（473a629 等）中。**即使删除文件，历史中仍可查到**。请尽快：
+1. 登录[阿里云百炼控制台](https://bailian.console.aliyun.com/) → API Key 管理 → 吊销该 Key
+2. 创建新 Key 后在 Web 设置页更新（settings.json 仅存本地）
+3. 新 Key 告诉我不用贴出来，直接在设置页填即可
+
+### 验证
+- 全仓库 grep 无完整 Key 残留（工作区）
+- 移除明文后 `/api/settings/test` 连通正常（Key 来自 settings.json），GET 接口掩码正常
+- exported=yes→17 条 / no→0 条 / 全部→17 条（与 export_state 差集核对一致）；非法值 422；浏览器筛选生效（未导出显示"暂无数据"）
+
+### 同步动作
+- [x] todo 已勾选 ｜ [x] DEVLOG 已更新 ｜ [x] neat-freak 已运行（README/CLAUDE.md 同步）｜ [x] 已推送 GitHub
+
+---
+
 ## 2026-07-30 ｜ GitHub 推送完成 + 流程违规复盘
 
 ### 状态

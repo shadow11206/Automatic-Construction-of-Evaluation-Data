@@ -26,7 +26,7 @@ tasks.json / results.json|csv / final.json|csv   # 流水线产物
 
 1. **不许改动原 5 个 Python 文件的业务逻辑**（prepare_tasks / generate_vqa / validate / prompt_templates / video_utils）。后端只 import 调用它们的函数。唯一允许的运行时干预：job 启动前给 `generate_vqa` 模块常量赋值（`API_KEY` / `MODEL` / `MAX_FRAMES`）。
 2. **数据文件格式冻结**：tasks.json、results.json、final.csv、两个 xlsx 的字段名与结构不许变，CLI 和 Web 必须能混用同一份数据。
-3. **API Key 安全**：只存 `server/settings.json`（已 gitignore）；任何 GET 接口不得返回完整 Key，必须掩码（如 `sk-****4fe6`）。
+3. **API Key 安全**：只存 `server/settings.json`（已 gitignore）；任何 GET 接口不得返回完整 Key，必须掩码（如 `sk-****4fe6`）；**代码文件中禁止明文 Key**（2026-07-30 泄露事故教训，generate_vqa.py 仅从环境变量读取）。
 4. **可回退**：server/、web/ 是纯新增目录，不许向根目录散文件；删掉这两个目录项目必须恢复为纯 CLI 可用状态。
 
 ## 关键技术决策（已定，勿擅自更改）

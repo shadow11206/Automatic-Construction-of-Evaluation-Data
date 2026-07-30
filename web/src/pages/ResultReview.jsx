@@ -18,7 +18,7 @@ export default function ResultReview() {
   const [exportedIds, setExportedIds] = useState(new Set())
   const [exporting, setExporting] = useState(false)
   const [loading, setLoading] = useState(false)
-  const [filters, setFilters] = useState({ cat: '', difficulty: '', verdict: '', q: '' })
+  const [filters, setFilters] = useState({ cat: '', difficulty: '', verdict: '', q: '', exported: '' })
   const [selected, setSelected] = useState([])
   const [editing, setEditing] = useState(null)   // Drawer 中正在审核的记录
   const [draft, setDraft] = useState({})          // 编辑草稿
@@ -142,10 +142,20 @@ export default function ResultReview() {
             options={categories.map(c => ({ value: c, label: c }))}
           />
           <Select
-            style={{ width: 110 }} placeholder="难度：全部" allowClear
+            style={{ width: 130 }} placeholder="难度：全部" allowClear
             value={filters.difficulty || undefined}
             onChange={(v) => setFilters({ ...filters, difficulty: v || '' })}
             options={['简单', '中等', '困难'].map(d => ({ value: d, label: d }))}
+          />
+          <Select
+            style={{ width: 130 }}
+            value={filters.exported || 'all'}
+            onChange={(v) => setFilters({ ...filters, exported: v === 'all' ? '' : v })}
+            options={[
+              { value: 'all', label: '导出：全部' },
+              { value: 'yes', label: '已导出' },
+              { value: 'no', label: '未导出' },
+            ]}
           />
           <Input.Search
             style={{ width: 220 }} placeholder="搜索 prompt / 答案关键词" allowClear

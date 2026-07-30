@@ -211,7 +211,11 @@ set DASHSCOPE_API_KEY=sk-你的密钥
 $env:DASHSCOPE_API_KEY="sk-你的密钥"
 ```
 
-**方式 B（备用）：直接修改代码**
+**方式 B：Web 工作台设置页（推荐，不碰代码）**
+
+在 Web 界面「设置」页填写 API Key，密钥存于本地 `server/settings.json`（已 gitignore，不进 git 仓库，接口不回显明文）。
+
+**方式 C（备用）：直接修改代码（不推荐）**
 
 打开 `generate_vqa.py`，找到第 36 行的配置区，修改 `API_KEY` 变量：
 
@@ -219,7 +223,7 @@ $env:DASHSCOPE_API_KEY="sk-你的密钥"
 API_KEY = os.environ.get("DASHSCOPE_API_KEY", "sk-你的密钥填在这里")
 ```
 
-> 注意：方式 B 的密钥会明文写在代码里，如果分享代码给别人记得先删除密钥。
+> ⚠️ 安全警告：方式 C 的密钥会明文写在代码里，**提交 git 后会进入历史记录，即使后续删除也会泄露**。2026-07-30 本项目曾因明文密钥被推送到公开仓库而紧急清除。如密钥曾泄露，请立即到百炼控制台吊销并换新。
 
 ---
 
@@ -557,7 +561,7 @@ CATEGORY_GUIDES = {
 
 | 参数 | 位置 | 默认值 | 说明 |
 |------|------|--------|------|
-| API_KEY | 第 36 行 | 从环境变量读取 | DashScope API 密钥 |
+| API_KEY | 第 36 行 | 从环境变量读取（代码中不存明文） | DashScope API 密钥 |
 | MODEL | 第 39 行 | `qwen3.6-plus` | 使用的模型名称 |
 | VIDEO_FOLDER | 第 42 行 | `./videos` | 视频存放目录 |
 | MAX_FRAMES | 第 45 行 | `64` | 每个视频最大抽帧数 |
