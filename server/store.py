@@ -129,12 +129,8 @@ def get_active_profile() -> dict:
 CATEGORY_COLUMNS = ["一级类目", "二级类目", "数量"]
 
 
-def load_categories() -> list:
-    """读取类目配置，返回 [{一级类目, 二级类目, 数量}, ...]"""
-    if not CATEGORY_XLSX.exists():
-        return []
-    df = pd.read_excel(CATEGORY_XLSX)
-    # 沿用 CLI 的列名自动识别逻辑
+def parse_category_df(df) -> list:
+    """从 DataFrame 解析类目配置（列名自动识别，兼容一级/1级/大类等变体）"""
     col_map = {}
     for col in df.columns:
         c = str(col).strip().lower()
@@ -145,7 +141,9 @@ def load_categories() -> list:
         elif "数量" in c or "count" in c or "num" in c:
             col_map["数量"] = col
     if len(col_map) < 3:
-        return []
+        raise ValueError(
+            f"列名识别失败，需包含：一级类目、二级类目、数量 三列。当前列名: {list(df.columns)}"
+        )
 
     rows = []
     for _, row in df.iterrows():
@@ -158,6 +156,31 @@ def load_categories() -> list:
         if cat1 and cat2 and count > 0:
             rows.append({"一级类目": cat1, "二级类目": cat2, "数量": count})
     return rows
+
+
+def parse_categories_upload(fileobj, filename: str) -> list:
+    """解析上传的类目配置文件（xlsx/xls/csv），仅解析不落库"""
+    suffix = Path(filename).suffix.lower()
+    if suffix in (".xlsx", ".xls"):
+        df = pd.read_excel(fileobj)
+    elif suffix == ".csv":
+        df = pd.read_csv(fileobj)
+    else:
+        raise ValueError(f"不支持的文件格式: {suffix}，请上传 xlsx 或 csv")
+    rows = parse_category_df(df)
+    if not rows:
+        raise ValueError("未解析到有效类目行（需：一级类目/二级类目/数量，数量为正整数）")
+    return rows
+
+
+def load_categories() -> list:
+    """读取类目配置，返回 [{一级类目, 二级类目, 数量}, ...]"""
+    if not CATEGORY_XLSX.exists():
+        return []
+    try:
+        return parse_category_df(pd.read_excel(CATEGORY_XLSX))
+    except ValueError:
+        return []
 
 
 def save_categories(rows: list) -> list:

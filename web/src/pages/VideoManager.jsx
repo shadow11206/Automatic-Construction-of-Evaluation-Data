@@ -11,6 +11,7 @@ export default function VideoManager() {
   const [saving, setSaving] = useState(false)
   const [playing, setPlaying] = useState(null)
   const [exportFilter, setExportFilter] = useState('all') // all / exported / unexported
+  const [selectedForDelete, setSelectedForDelete] = useState([])
   const { status } = usePipelineStatus()
   const running = status?.status === 'running'
 
@@ -48,6 +49,18 @@ export default function VideoManager() {
     } catch { /* 拦截器已提示 */ } finally {
       setSaving(false)
     }
+  }
+
+  const batchDelete = async () => {
+    try {
+      const res = await api.batchDeleteVideos(selectedForDelete)
+      const ok = res.deleted.length
+      const fail = res.failed.length
+      if (fail > 0) message.warning(`${fail} 个删除失败`)
+      message.success(`已删除 ${ok} 个视频`)
+      setSelectedForDelete([])
+      load()
+    } catch { /* 拦截器已提示 */ }
   }
 
   const uploadProps = {
@@ -145,7 +158,21 @@ export default function VideoManager() {
           </Space>
         }
       >
-        <Table rowKey="name" loading={loading} columns={columns} dataSource={shownVideos} pagination={false} />
+        <Table rowKey="name" loading={loading} columns={columns} dataSource={shownVideos} pagination={false}
+          rowSelection={{ selectedRowKeys: selectedForDelete, onChange: setSelectedForDelete }}
+        />
+        {selectedForDelete.length > 0 && (
+          <div style={{ marginTop: 12, display: 'flex', justifyContent: 'flex-end' }}>
+            <Popconfirm
+              title={`确认删除选中的 ${selectedForDelete.length} 个视频？`}
+              onConfirm={batchDelete}
+            >
+              <Button danger icon={<DeleteOutlined />} disabled={running}>
+                删除选中（{selectedForDelete.length}）
+              </Button>
+            </Popconfirm>
+          </div>
+        )}
       </Card>
 
       <Modal

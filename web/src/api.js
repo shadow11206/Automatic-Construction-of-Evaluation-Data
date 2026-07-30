@@ -29,6 +29,13 @@ const api = {
   },
   deleteVideo: (name) => http.delete(`/api/videos/${encodeURIComponent(name)}`),
   saveVideoList: (names) => http.put('/api/videos/list', { names }),
+  batchDeleteVideos: (names) => http.post('/api/videos/batch-delete', { names }),
+  // 解析类目 Excel（仅解析不落库）
+  importCategories: (file) => {
+    const form = new FormData()
+    form.append('file', file)
+    return http.post('/api/config/categories/import', form)
+  },
 
   // 流水线
   runPrepare: () => http.post('/api/pipeline/prepare'),

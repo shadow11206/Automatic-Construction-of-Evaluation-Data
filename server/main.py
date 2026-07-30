@@ -152,6 +152,29 @@ def put_video_list(payload: VideoListPayload):
     return {"saved": len(names)}
 
 
+@app.post("/api/videos/batch-delete")
+def batch_delete_videos(payload: VideoListPayload):
+    """批量删除视频（复用单删逻辑，逐个返回结果；被引用的返回警告计数）"""
+    if not payload.names:
+        raise ValueError("未选择要删除的视频")
+    if jobs.get_status()["status"] == "running":
+        raise HTTPException(409, "生成任务运行中，禁止删除视频")
+    deleted, failed = [], []
+    for name in payload.names:
+        try:
+            deleted.append(store.delete_video(name))
+        except Exception as e:
+            failed.append({"name": name, "error": str(e)})
+    return {"deleted": deleted, "failed": failed}
+
+
+@app.post("/api/config/categories/import")
+async def import_categories(file: UploadFile = File(...)):
+    """解析上传的类目配置（xlsx/xls/csv），仅解析不落库，由前端预览后走保存接口"""
+    rows = store.parse_categories_upload(file.file, file.filename)
+    return {"rows": rows, "total": sum(r["数量"] for r in rows)}
+
+
 @app.get("/videos/{name}")
 def stream_video(name: str, request: Request):
     """视频流：FileResponse 自动支持 Range 请求（拖动播放）"""

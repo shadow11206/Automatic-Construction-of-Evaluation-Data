@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react'
-import { Card, Table, Button, Input, InputNumber, AutoComplete, Space, Tag, message, Popconfirm, Alert } from 'antd'
-import { PlusOutlined, SaveOutlined, DeleteOutlined } from '@ant-design/icons'
+import { Card, Table, Button, Input, InputNumber, AutoComplete, Space, Tag, message, Popconfirm, Alert, Upload, Modal, Radio } from 'antd'
+import { PlusOutlined, SaveOutlined, DeleteOutlined, ImportOutlined } from '@ant-design/icons'
 import api from '../api'
 
 export default function CategoryConfig() {
@@ -9,6 +9,8 @@ export default function CategoryConfig() {
   const [weights, setWeights] = useState({ 简单: 0.3, 中等: 0.4, 困难: 0.3 })
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [importing, setImporting] = useState(false)
+  const [importPreview, setImportPreview] = useState(null) // {rows, total, filename}
 
   const load = async () => {
     setLoading(true)
@@ -34,6 +36,26 @@ export default function CategoryConfig() {
   const addRow = () => {
     const key = rows.length ? Math.max(...rows.map(r => r._key)) + 1 : 0
     setRows([...rows, { _key: key, 一级类目: '', 二级类目: '', 数量: 10 }])
+  }
+
+  // Excel 导入：先解析预览，用户选「追加/覆盖」后并入表格，仍由「保存配置」统一写回
+  const handleImport = async (file) => {
+    setImporting(true)
+    try {
+      const res = await api.importCategories(file)
+      setImportPreview({ ...res, filename: file.name })
+    } catch { /* 拦截器已提示 */ } finally {
+      setImporting(false)
+    }
+  }
+
+  const applyImport = (mode) => {
+    const base = mode === 'replace' ? [] : rows
+    const maxKey = base.length ? Math.max(...base.map(r => r._key)) : -1
+    const newRows = importPreview.rows.map((r, i) => ({ ...r, _key: maxKey + 1 + i }))
+    setRows([...base, ...newRows])
+    message.success(`已${mode === 'replace' ? '覆盖' : '追加'}导入 ${newRows.length} 行（共 ${importPreview.total} 条任务），确认后点「保存配置」生效`)
+    setImportPreview(null)
   }
 
   const save = async () => {
@@ -107,6 +129,13 @@ export default function CategoryConfig() {
         />
         <Space style={{ marginTop: 14 }}>
           <Button icon={<PlusOutlined />} onClick={addRow}>添加一行</Button>
+          <Upload
+            accept=".xlsx,.xls,.csv"
+            showUploadList={false}
+            customRequest={({ file }) => handleImport(file)}
+          >
+            <Button icon={<ImportOutlined />} loading={importing}>从 Excel 导入</Button>
+          </Upload>
           <Button type="primary" icon={<SaveOutlined />} loading={saving} disabled={!weightOk} onClick={save}>
             保存配置
           </Button>
@@ -118,6 +147,31 @@ export default function CategoryConfig() {
           message="带「✦ 内置」标记的一级类目在 prompt_templates.py 中有内置引导语，生成质量更稳；未内置类目使用默认引导语并跳过关键词校验。"
         />
       </Card>
+
+      <Modal
+        open={!!importPreview}
+        title={`导入预览：${importPreview?.filename || ''}`}
+        onCancel={() => setImportPreview(null)}
+        footer={null}
+        width={560}
+      >
+        {importPreview && (
+          <div>
+            <p>解析到 <b>{importPreview.rows.length}</b> 行类目，共 <b>{importPreview.total}</b> 条任务：</p>
+            <div style={{ maxHeight: 240, overflowY: 'auto', border: '1px solid #f0f0f0', borderRadius: 8, padding: 12, marginBottom: 16 }}>
+              {importPreview.rows.map((r, i) => (
+                <div key={i} style={{ fontSize: 13, lineHeight: 2 }}>
+                  {r.一级类目} / {r.二级类目} × {r.数量}
+                </div>
+              ))}
+            </div>
+            <Space style={{ display: 'flex', justifyContent: 'flex-end' }}>
+              <Button onClick={() => applyImport('append')}>追加到现有配置</Button>
+              <Button type="primary" danger onClick={() => applyImport('replace')}>覆盖现有配置</Button>
+            </Space>
+          </div>
+        )}
+      </Modal>
 
       <Card title="难度权重" style={{ marginTop: 16 }}>
         <Space size="large" align="center">
