@@ -5,6 +5,37 @@
 
 ---
 
+## 2026-07-30 ｜ git 历史清洗 + 克隆即用验证
+
+### 状态
+- T9.1/T9.2 ✅ 完成并推送（force push 后 main 已重写，备份 bundle 在 /tmp/vqa_backup_20260730_115131.bundle）
+- 主项目服务运行正常
+
+### 完成
+1. **git 历史清洗（T9.1）**：
+   - 先 `git bundle` 全量备份到 /tmp（85MB）
+   - `git filter-repo --replace-text` 清洗两处泄露：完整 Key（→ `***REMOVED***`）、mockup 片段（→ 假值）
+   - `git log -p --all` 复验两处 0 残留，force push 完成
+2. **克隆即用（T9.2）**：
+   - web/dist 移出 gitignore 随仓库分发（克隆后免 npm 构建）
+   - 全新克隆实测：首页 UI 200、settings 默认结构正常（has_key=False 不崩溃）、prepare 正常、视频流 200、结果接口 200
+   - 唯一限制：generate 需克隆者在设置页填自己的 Key（README 已说明）
+
+### 踩坑记录
+| 坑 | 现象 | 解决 |
+|----|------|------|
+| replacements 圆点数量不匹配 | 第一次清洗 mockup 片段失败（写了 9 个 • 实际 8 个） | `cat -v` 查历史真实字节，精确匹配后二次清洗成功 |
+| filter-repo 清除分支跟踪 | 重写历史后 `git push` 报 no upstream，dist commit 实际没推上去（被 tail 吞掉的错误输出掩盖） | `git push -u origin main` 重建跟踪；教训：force push 类命令不能只看 tail，要确认真实结果 |
+| 克隆验证撞端口 | 主项目服务占 8000，克隆实例验证打到了主项目上 | 验证克隆前先 pkill 主服务，验证后恢复 |
+
+### 遗留风险
+- GitHub 可能缓存旧 commit 页面；已 clone/fork 的副本仍含 Key → **吊销旧 Key 换新仍是根本方案**（用户待办）
+
+### 同步动作
+- [x] todo 已勾选 ｜ [x] DEVLOG 已更新 ｜ [x] neat-freak 已运行 ｜ [x] 已推送 GitHub
+
+---
+
 ## 2026-07-30 ｜ 安全修复（明文 Key 泄露）+ 导出状态筛选
 
 ### 状态
