@@ -13,6 +13,10 @@
 ### 启动
 
 ```bash
+# 0. 克隆项目（前端产物已随仓库内置，无需 npm）
+git clone https://github.com/shadow11206/Automatic-Construction-of-Evaluation-Data.git
+cd Automatic-Construction-of-Evaluation-Data
+
 # 1. 安装后端依赖（首次）
 pip install -r requirements.txt
 
@@ -21,6 +25,8 @@ python server/main.py
 ```
 
 浏览器打开 **http://localhost:8000** 即可使用。
+
+> **首次使用**：到「设置」页填写你自己的 API Key（存本地 `server/settings.json`，不进 git）。未配置 Key 时，界面/准备/校验功能正常，仅「生成数据」会因无密钥失败并提示配置。
 
 ### 页面功能
 
