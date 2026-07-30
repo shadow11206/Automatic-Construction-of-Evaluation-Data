@@ -7,7 +7,7 @@
 > 3. 验证不通过：修好再继续，不允许跳过验证勾选
 > 4. 失败处理：同一问题最多重试 3 次且每次换思路；3 次仍失败标记 `[!]` 阻塞，先做同阶段不依赖它的任务；阻塞整个阶段则停下来向用户报告（卡在哪/试过什么/建议方案）
 > 5. 并行任务用 git worktree 隔离（见 CLAUDE.md「开发流程」）
-> 更新日期：2026-07-29 ｜ 全部阶段已完成（T0.3 GitHub 远程等用户提供 repo 地址）
+> 更新日期：2026-07-29 ｜ 全部阶段已完成（含 T0.3 GitHub 推送）
 
 ---
 
@@ -15,12 +15,12 @@
 
 - [x] T0.1 `pip install fastapi uvicorn python-multipart requests` 并写入 `requirements.txt`（连同原有 dashscope/opencv-python/pandas/openpyxl/tqdm）
 - [x] T0.2 创建 `server/` 与 `web/` 目录结构；`.gitignore` 增加 `server/settings.json`、`web/node_modules`、`web/dist`、`venv/`、`__pycache__/`、`.DS_Store`
-- [!] T0.3 配置 GitHub 远程仓库（需用户提供 repo 地址或授权创建），完成首次推送
+- [x] T0.3 配置 GitHub 远程仓库（shadow11206/Automatic-Construction-of-Evaluation-Data），完成首次推送（2026-07-30）
 
 **✅ 阶段 0 验证清单**
 - [x] `venv/bin/python -c "import fastapi, uvicorn, multipart"` 无报错
 - [x] `git check-ignore server/settings.json web/node_modules` 命中
-- [!] `git remote -v` 显示 GitHub 地址且 `git push` 成功
+- [x] `git remote -v` 显示 GitHub 地址且 `git push` 成功
 
 ---
 
