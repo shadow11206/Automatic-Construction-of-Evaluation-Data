@@ -13,6 +13,7 @@ import sys
 import json
 import threading
 from pathlib import Path
+from datetime import datetime
 
 import pandas as pd
 
@@ -36,6 +37,7 @@ RESULTS_CSV = ROOT / "results.csv"
 FINAL_JSON = ROOT / "final.json"
 FINAL_CSV = ROOT / "final.csv"
 SETTINGS_JSON = Path(__file__).resolve().parent / "settings.json"
+EXPORT_STATE_JSON = Path(__file__).resolve().parent / "export_state.json"
 
 VIDEO_EXTS = {".mp4", ".avi", ".mov", ".mkv", ".webm", ".flv", ".wmv"}
 
@@ -217,15 +219,20 @@ def save_video_list(names: list) -> list:
 def scan_videos() -> list:
     """
     扫描 videos/ 目录，返回每个视频的元数据：
-    [{name, duration, duration_seconds, size_mb, in_list, used_by}]
+    [{name, duration, duration_seconds, size_mb, in_list, used_by, exported_count}]
     used_by: 该视频在 results.json 中被引用的次数（用于删除前警告）
+    exported_count: 该视频的结果中已被导出的条数（用于已导出/未导出分辨）
     """
     in_list = set(load_video_list())
+    exported_ids = set(load_export_state().get("exported_ids", []))
     used_count = {}
+    exported_count = {}
     for r in load_results("results"):
         v = r.get("视频url", "")
         if v:
             used_count[v] = used_count.get(v, 0) + 1
+            if r.get("data_id") in exported_ids:
+                exported_count[v] = exported_count.get(v, 0) + 1
 
     items = []
     if VIDEO_FOLDER.exists():
@@ -237,6 +244,7 @@ def scan_videos() -> list:
                 "size_mb": round(f.stat().st_size / 1024 / 1024, 1),
                 "in_list": f.name in in_list,
                 "used_by": used_count.get(f.name, 0),
+                "exported_count": exported_count.get(f.name, 0),
                 "duration": "未知",
                 "duration_seconds": 0,
             }
@@ -341,14 +349,65 @@ def update_result_item(data_id: str, updates: dict, source: str = "results") -> 
 
 
 def remove_result_items(data_ids: list, source: str = "results") -> int:
-    """删除指定 data_id 的记录（用于标记重跑/删除），返回删除数量"""
+    """删除指定 data_id 的记录（用于标记重跑/删除），返回删除数量。同时清除其导出标记。"""
     data = load_results(source)
     id_set = set(data_ids)
     kept = [r for r in data if r.get("data_id") not in id_set]
     removed = len(data) - len(kept)
     if removed > 0:
         save_results(kept, source)
+        unmark_exported(id_set)
     return removed
+
+
+# ============================================================
+# 导出状态追踪（server/export_state.json）
+# ============================================================
+
+def load_export_state() -> dict:
+    """读取导出状态：{exported_ids: [...], history: [{time, source, count, file}]}"""
+    if not EXPORT_STATE_JSON.exists():
+        return {"exported_ids": [], "history": []}
+    try:
+        with open(EXPORT_STATE_JSON, "r", encoding="utf-8") as f:
+            state = json.load(f)
+        state.setdefault("exported_ids", [])
+        state.setdefault("history", [])
+        return state
+    except (json.JSONDecodeError, OSError):
+        return {"exported_ids": [], "history": []}
+
+
+def mark_exported(data_ids: list, source: str, filename: str) -> dict:
+    """记录一批条目已导出（幂等：重复导出同一条目不重复计数）"""
+    state = load_export_state()
+    ids = set(state["exported_ids"])
+    new_ids = [i for i in data_ids if i not in ids]
+    ids.update(data_ids)
+    state["exported_ids"] = sorted(ids)
+    state["history"].append({
+        "time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "source": source,
+        "count": len(data_ids),
+        "new_count": len(new_ids),
+        "file": filename,
+    })
+    state["history"] = state["history"][-100:]  # 历史只留最近 100 条
+    with _lock:
+        with open(EXPORT_STATE_JSON, "w", encoding="utf-8") as f:
+            json.dump(state, f, ensure_ascii=False, indent=2)
+    return {"total_exported": len(ids), "new_exported": len(new_ids)}
+
+
+def unmark_exported(data_ids) -> None:
+    """条目被删除/重跑时，同步清除其导出标记"""
+    state = load_export_state()
+    ids = set(state["exported_ids"]) - set(data_ids)
+    if len(ids) != len(state["exported_ids"]):
+        state["exported_ids"] = sorted(ids)
+        with _lock:
+            with open(EXPORT_STATE_JSON, "w", encoding="utf-8") as f:
+                json.dump(state, f, ensure_ascii=False, indent=2)
 
 
 # ============================================================

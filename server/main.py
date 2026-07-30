@@ -21,7 +21,7 @@ if str(ROOT) not in sys.path:
 
 from fastapi import FastAPI, UploadFile, File, HTTPException, Query, Request  # noqa: E402
 from fastapi.middleware.cors import CORSMiddleware  # noqa: E402
-from fastapi.responses import FileResponse, JSONResponse  # noqa: E402
+from fastapi.responses import FileResponse, JSONResponse, StreamingResponse  # noqa: E402
 from fastapi.staticfiles import StaticFiles  # noqa: E402
 from pydantic import BaseModel  # noqa: E402
 
@@ -214,6 +214,25 @@ def get_results(
     verdict: str = "",
     q: str = "",
 ):
+    data = _filter_results(source, cat, difficulty, verdict, q)
+
+    # 统计信息（筛选前的全集统计，供页面卡片）
+    full = store.load_results(source)
+    stat_field = "校验结果" if source == "final" else "状态"
+    stats = {}
+    for r in full:
+        v = r.get(stat_field, "未知")
+        stats[v] = stats.get(v, 0) + 1
+    return {
+        "items": data,
+        "total": len(full),
+        "stats": stats,
+        "exported_ids": store.load_export_state().get("exported_ids", []),
+    }
+
+
+def _filter_results(source: str, cat: str, difficulty: str, verdict: str, q: str) -> list:
+    """结果筛选（GET /api/results 与 /api/results/export 共用）"""
     data = store.load_results(source)
     if cat:
         data = [r for r in data if r.get("一级类目") == cat]
@@ -224,15 +243,46 @@ def get_results(
         data = [r for r in data if r.get(field) == verdict]
     if q:
         data = [r for r in data if q in str(r.get("prompt", "")) or q in str(r.get("参考答案", ""))]
+    return data
 
-    # 统计信息（筛选前的全集统计，供页面卡片）
-    full = store.load_results(source)
-    stat_field = "校验结果" if source == "final" else "状态"
-    stats = {}
-    for r in full:
-        v = r.get(stat_field, "未知")
-        stats[v] = stats.get(v, 0) + 1
-    return {"items": data, "total": len(full), "stats": stats}
+
+@app.get("/api/results/export")
+def export_results(
+    source: str = Query("results", pattern="^(results|final)$"),
+    cat: str = "",
+    difficulty: str = "",
+    verdict: str = "",
+    q: str = "",
+):
+    """导出当前筛选视图为 xlsx，并记录导出状态（用于视频页已导出/未导出分辨）"""
+    import io
+    from datetime import datetime as _dt
+    import pandas as pd
+
+    data = _filter_results(source, cat, difficulty, verdict, q)
+    if not data:
+        raise ValueError("当前筛选条件下没有可导出的数据")
+
+    df = pd.DataFrame(data)
+    buf = io.BytesIO()
+    with pd.ExcelWriter(buf, engine="openpyxl") as writer:
+        df.to_excel(writer, index=False, sheet_name="VQA数据")
+    buf.seek(0)
+
+    filename = f"VQA_{source}_{_dt.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
+    ids = [r.get("data_id") for r in data if r.get("data_id")]
+    mark_res = store.mark_exported(ids, source, filename)
+
+    from urllib.parse import quote
+    return StreamingResponse(
+        buf,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={
+            "Content-Disposition": f"attachment; filename*=UTF-8''{quote(filename)}",
+            "X-Export-Count": str(len(ids)),
+            "X-Export-New": str(mark_res["new_exported"]),
+        },
+    )
 
 
 @app.put("/api/results/{data_id}")

@@ -15,6 +15,8 @@ export default function ResultReview() {
   const [items, setItems] = useState([])
   const [stats, setStats] = useState({})
   const [total, setTotal] = useState(0)
+  const [exportedIds, setExportedIds] = useState(new Set())
+  const [exporting, setExporting] = useState(false)
   const [loading, setLoading] = useState(false)
   const [filters, setFilters] = useState({ cat: '', difficulty: '', verdict: '', q: '' })
   const [selected, setSelected] = useState([])
@@ -30,6 +32,7 @@ export default function ResultReview() {
       setItems(res.items)
       setStats(res.stats || {})
       setTotal(res.total || 0)
+      setExportedIds(new Set(res.exported_ids || []))
     } catch { /* 拦截器已提示 */ } finally {
       setLoading(false)
     }
@@ -67,8 +70,26 @@ export default function ResultReview() {
     } catch { /* 拦截器已提示 */ }
   }
 
+  const doExport = async () => {
+    setExporting(true)
+    try {
+      const res = await api.exportResults({ source, ...filters })
+      message.success(`已导出 ${res.count} 条到 ${res.filename}（其中 ${res.newCount} 条为首次导出）`)
+      load() // 刷新已导出标记
+    } catch { /* 已提示 */ } finally {
+      setExporting(false)
+    }
+  }
+
   const columns = [
-    { title: 'data_id', dataIndex: 'data_id', width: 100 },
+    { title: 'data_id', dataIndex: 'data_id', width: 130,
+      render: (v) => (
+        <Space size={4}>
+          <span>{v}</span>
+          {exportedIds.has(v) && <Tag color="cyan" style={{ marginInlineEnd: 0 }}>已导出</Tag>}
+        </Space>
+      ),
+    },
     {
       title: '类目', width: 150,
       render: (_, r) => <span>{r.一级类目}<span style={{ color: '#bbb' }}>/</span>{r.二级类目}</span>,
@@ -77,7 +98,13 @@ export default function ResultReview() {
     {
       title: 'prompt', dataIndex: 'prompt',
       render: (v) => v
-        ? <Tooltip title={v}><span style={{ display: 'inline-block', maxWidth: 380, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', verticalAlign: 'bottom' }}>{v}</span></Tooltip>
+        ? <Tooltip title={v}><span style={{ display: 'inline-block', maxWidth: 280, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', verticalAlign: 'bottom' }}>{v}</span></Tooltip>
+        : <span style={{ color: '#bbb' }}>（空）</span>,
+    },
+    {
+      title: '参考答案', dataIndex: '参考答案',
+      render: (v) => v
+        ? <Tooltip title={v}><span style={{ display: 'inline-block', maxWidth: 280, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', verticalAlign: 'bottom' }}>{v}</span></Tooltip>
         : <span style={{ color: '#bbb' }}>（空）</span>,
     },
     {
@@ -127,6 +154,9 @@ export default function ResultReview() {
           />
           <span style={{ flex: 1 }} />
           <Button icon={<ReloadOutlined />} onClick={load}>刷新</Button>
+          <Button type="primary" icon={<DownloadOutlined />} loading={exporting} onClick={doExport}>
+            导出 Excel
+          </Button>
           <Popconfirm title={`标记 ${selected.length} 条重跑？（将从结果中移除，下次生成自动补跑）`} onConfirm={batchRerun} disabled={!selected.length}>
             <Button icon={<ReloadOutlined />} disabled={!selected.length || running}>标记重跑（{selected.length}）</Button>
           </Popconfirm>

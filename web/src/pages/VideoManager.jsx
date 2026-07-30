@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react'
-import { Card, Table, Button, Upload, Checkbox, Tag, Modal, Space, message, Popconfirm } from 'antd'
+import { Card, Table, Button, Upload, Checkbox, Tag, Modal, Space, message, Popconfirm, Radio } from 'antd'
 import { InboxOutlined, PlayCircleOutlined, DeleteOutlined, SaveOutlined } from '@ant-design/icons'
 import api from '../api'
 import { usePipelineStatus } from '../App'
@@ -10,8 +10,16 @@ export default function VideoManager() {
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [playing, setPlaying] = useState(null)
+  const [exportFilter, setExportFilter] = useState('all') // all / exported / unexported
   const { status } = usePipelineStatus()
   const running = status?.status === 'running'
+
+  // 按导出状态筛选显示
+  const shownVideos = videos.filter(v => {
+    if (exportFilter === 'exported') return v.exported_count > 0
+    if (exportFilter === 'unexported') return v.exported_count === 0
+    return true
+  })
 
   const load = async () => {
     setLoading(true)
@@ -88,6 +96,12 @@ export default function VideoManager() {
         : (v.in_list ? <Tag color="blue">在清单中</Tag> : <Tag>未参与</Tag>),
     },
     {
+      title: '导出状态', width: 130,
+      render: (_, v) => v.exported_count > 0
+        ? <Tag color="cyan">已导出 {v.exported_count} 条</Tag>
+        : <Tag>未导出</Tag>,
+    },
+    {
       title: '操作', width: 160,
       render: (_, v) => (
         <Space>
@@ -118,6 +132,11 @@ export default function VideoManager() {
         title="视频库"
         extra={
           <Space>
+            <Radio.Group size="small" value={exportFilter} onChange={(e) => setExportFilter(e.target.value)}>
+              <Radio.Button value="all">全部（{videos.length}）</Radio.Button>
+              <Radio.Button value="exported">已导出（{videos.filter(v => v.exported_count > 0).length}）</Radio.Button>
+              <Radio.Button value="unexported">未导出（{videos.filter(v => v.exported_count === 0).length}）</Radio.Button>
+            </Radio.Group>
             <Button size="small" onClick={() => setChecked(new Set(videos.map(v => v.name)))}>全选</Button>
             <Button size="small" onClick={() => setChecked(new Set())}>清空</Button>
             <Button type="primary" size="small" icon={<SaveOutlined />} loading={saving} onClick={saveList}>
@@ -126,7 +145,7 @@ export default function VideoManager() {
           </Space>
         }
       >
-        <Table rowKey="name" loading={loading} columns={columns} dataSource={videos} pagination={false} />
+        <Table rowKey="name" loading={loading} columns={columns} dataSource={shownVideos} pagination={false} />
       </Card>
 
       <Modal

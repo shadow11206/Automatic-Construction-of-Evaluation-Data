@@ -43,6 +43,36 @@ const api = {
     http.put(`/api/results/${encodeURIComponent(dataId)}`, { updates }, { params: { source } }),
   rerunResults: (dataIds, source = 'results') =>
     http.post('/api/results/rerun', { data_ids: dataIds, source }),
+  // 导出 xlsx：blob 下载，返回 {count, newCount, filename}
+  exportResults: async (params) => {
+    const resp = await axios.get('/api/results/export', {
+      params,
+      responseType: 'blob',
+      timeout: 120000,
+    }).catch((err) => {
+      // blob 错误响应需转 JSON 读取 detail
+      if (err.response?.data instanceof Blob) {
+        err.response.data.text().then((t) => {
+          try { message.error(JSON.parse(t).detail || '导出失败') } catch { message.error('导出失败') }
+        })
+      }
+      throw err
+    })
+    const dispo = resp.headers['content-disposition'] || ''
+    const match = dispo.match(/filename\*=UTF-8''([^;]+)/)
+    const filename = match ? decodeURIComponent(match[1]) : 'VQA_export.xlsx'
+    const url = URL.createObjectURL(resp.data)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = filename
+    a.click()
+    URL.revokeObjectURL(url)
+    return {
+      count: Number(resp.headers['x-export-count'] || 0),
+      newCount: Number(resp.headers['x-export-new'] || 0),
+      filename,
+    }
+  },
 
   // 设置
   getSettings: () => http.get('/api/settings'),
