@@ -27,7 +27,9 @@ from pydantic import BaseModel  # noqa: E402
 
 from server import store, jobs  # noqa: E402
 from server.vl_adapter import test_profile  # noqa: E402
-from prompt_templates import CATEGORY_GUIDES  # noqa: E402
+from prompt_templates import (  # noqa: E402
+    CATEGORY_GUIDES, ABILITY_PATTERNS, USER_TO_INTERNAL, HUMAN_TONE_TEMPLATES,
+)
 
 app = FastAPI(title="VQA 评测数据工作台", version="1.0.0")
 
@@ -91,9 +93,11 @@ class SettingsPayload(BaseModel):
 
 @app.get("/api/config/categories")
 def get_categories():
+    # 内置类目 = 新版 6 个能力维度（USER_TO_INTERNAL 的 key）+ 旧版 CATEGORY_GUIDES 的 5 个（向后兼容）
+    builtin = list(USER_TO_INTERNAL.keys()) + list(CATEGORY_GUIDES.keys())
     return {
         "rows": store.load_categories(),
-        "builtin_categories": list(CATEGORY_GUIDES.keys()),
+        "builtin_categories": builtin,
         "total": sum(c["数量"] for c in store.load_categories()),
     }
 
@@ -107,6 +111,39 @@ def put_categories(payload: CategoriesPayload):
 @app.get("/api/config/difficulty")
 def get_difficulty():
     return {"weights": store.load_settings().get("difficulty_weights")}
+
+
+@app.get("/api/config/patterns")
+def get_patterns():
+    """返回 37 个题型范式 + 7 个人味模板，供前端类目配置页下拉选择
+
+    返回结构：
+        {
+          "abilities": [
+            {"name": "视觉基础能力", "internal": "感知层", "categories": ["动作识别", ...]},
+            {"name": "时序能力", "internal": "时序层", "categories": [...]},
+            ...
+          ],
+          "tone_templates": {"A-场景化追问": {"说明":..., "范例":...}, ...}
+        }
+    """
+    # 按 USER_TO_INTERNAL 的顺序输出（用户命名优先）
+    abilities = []
+    seen_internal = set()
+    for user_name, internal in USER_TO_INTERNAL.items():
+        if internal in seen_internal:
+            continue
+        seen_internal.add(internal)
+        categories = list(ABILITY_PATTERNS.get(internal, {}).keys())
+        abilities.append({
+            "name": user_name,
+            "internal": internal,
+            "categories": categories,
+        })
+    return {
+        "abilities": abilities,
+        "tone_templates": HUMAN_TONE_TEMPLATES,
+    }
 
 
 @app.put("/api/config/difficulty")
@@ -218,6 +255,12 @@ def api_status():
         "final_exists": store.FINAL_JSON.exists(),
     }
     return status
+
+
+@app.get("/api/pipeline/preview")
+def api_preview():
+    """预览下次生成会跑多少新任务、跳过多少旧任务（供按钮文案展示）"""
+    return jobs.preview_generate()
 
 
 @app.post("/api/pipeline/stop")

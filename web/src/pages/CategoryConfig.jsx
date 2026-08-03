@@ -6,6 +6,7 @@ import api from '../api'
 export default function CategoryConfig() {
   const [rows, setRows] = useState([])
   const [builtin, setBuiltin] = useState([])
+  const [patterns, setPatterns] = useState({ abilities: [], tone_templates: {} })
   const [weights, setWeights] = useState({ 简单: 0.3, 中等: 0.4, 困难: 0.3 })
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -15,10 +16,13 @@ export default function CategoryConfig() {
   const load = async () => {
     setLoading(true)
     try {
-      const [catRes, diffRes] = await Promise.all([api.getCategories(), api.getDifficulty()])
+      const [catRes, diffRes, patRes] = await Promise.all([
+        api.getCategories(), api.getDifficulty(), api.getPatterns(),
+      ])
       setRows(catRes.rows.map((r, i) => ({ ...r, _key: i })))
       setBuiltin(catRes.builtin_categories || [])
       if (diffRes.weights) setWeights(diffRes.weights)
+      setPatterns(patRes)
     } catch { /* 拦截器已提示 */ } finally {
       setLoading(false)
     }
@@ -70,6 +74,14 @@ export default function CategoryConfig() {
     }
   }
 
+  // 一级类目下拉选项（来自 37 个范式表）
+  const abilityOptions = patterns.abilities || []
+  // 根据当前行的一级类目，找出对应的二级类目候选
+  const getCategories2 = (一级类目) => {
+    const found = abilityOptions.find(a => a.name === 一级类目)
+    return found ? found.categories : []
+  }
+
   const columns = [
     { title: '#', width: 50, render: (_, __, i) => i + 1 },
     {
@@ -79,23 +91,35 @@ export default function CategoryConfig() {
           <AutoComplete
             value={v}
             style={{ width: 160 }}
-            options={builtin.map(b => ({ value: b }))}
-            placeholder="如：动作识别"
+            placeholder="选择或自定义"
+            options={abilityOptions.map(a => ({ value: a.name, label: a.name }))}
+            filterOption={(input, opt) => (opt.value || '').includes(input)}
             onChange={(val) => updateRow(r._key, '一级类目', val)}
-            filterOption={(input, opt) => opt.value.includes(input)}
+            allowClear
           />
           {builtin.includes(v)
             ? <Tag color="blue">✦ 内置</Tag>
-            : v ? <Tag>未内置</Tag> : null}
+            : v ? <Tag>自定义</Tag> : null}
         </Space>
       ),
     },
     {
       title: '二级类目', dataIndex: '二级类目',
-      render: (v, r) => (
-        <Input value={v} placeholder="如：人物动作" style={{ width: 180 }}
-          onChange={(e) => updateRow(r._key, '二级类目', e.target.value)} />
-      ),
+      render: (v, r) => {
+        const cats2 = getCategories2(r.一级类目)
+        return (
+          <AutoComplete
+            value={v}
+            style={{ width: 180 }}
+            placeholder={r.一级类目 ? '选择或自定义' : '请先填一级类目'}
+            options={cats2.map(c => ({ value: c, label: c }))}
+            filterOption={(input, opt) => (opt.value || '').includes(input)}
+            onChange={(val) => updateRow(r._key, '二级类目', val)}
+            disabled={!r.一级类目}
+            allowClear
+          />
+        )
+      },
     },
     {
       title: '数量', dataIndex: '数量', width: 120,
@@ -144,7 +168,7 @@ export default function CategoryConfig() {
           style={{ marginTop: 14 }}
           type="info"
           showIcon
-          message="带「✦ 内置」标记的一级类目在 prompt_templates.py 中有内置引导语，生成质量更稳；未内置类目使用默认引导语并跳过关键词校验。"
+          message="一级/二级类目支持下拉选择（6 个能力维度 × 37 个题型范式）或自定义填写。带「✦ 内置」标记的一级类目在 prompt_templates.py 中有内置引导语，生成质量更稳；自定义类目使用默认引导语并跳过关键词校验。"
         />
       </Card>
 

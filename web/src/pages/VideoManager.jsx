@@ -53,8 +53,12 @@ export default function VideoManager() {
   const batchDelete = async () => {
     try {
       const res = await api.batchDeleteVideos(selected)
-      if (res.failed.length > 0) message.warning(`${res.failed.length} 个删除失败`)
-      message.success(`已删除 ${res.deleted.length} 个视频`)
+      if (res.failed.length > 0) {
+        message.warning(`已删除 ${res.deleted.length} 个，${res.failed.length} 个删除失败`)
+      } else {
+        message.success(`已删除 ${res.deleted.length} 个视频`)
+      }
+      setSelected([])
       load()
     } catch { /* 拦截器已提示 */ }
   }
@@ -123,17 +127,9 @@ export default function VideoManager() {
         : <Tag>未导出</Tag>,
     },
     {
-      title: '操作', width: 160,
+      title: '操作', width: 90,
       render: (_, v) => (
-        <Space>
-          <Button size="small" onClick={() => setPlaying(v.name)}>播放</Button>
-          <Popconfirm
-            title={v.used_by > 0 ? `该视频已被 ${v.used_by} 条结果引用，删除后这些数据将无法回看视频，确认删除？` : '确认删除该视频？'}
-            onConfirm={async () => { await api.deleteVideo(v.name); message.success('已删除'); load() }}
-          >
-            <Button size="small" danger disabled={running}>删除</Button>
-          </Popconfirm>
-        </Space>
+        <Button size="small" onClick={() => setPlaying(v.name)}>播放</Button>
       ),
     },
   ]
@@ -190,7 +186,6 @@ export default function VideoManager() {
           rowSelection={{
             selectedRowKeys: selected,
             onChange: setSelected,
-            columnTitle: '配置',
           }}
         />
         <div style={{ marginTop: 10, fontSize: 12, color: '#999' }}>

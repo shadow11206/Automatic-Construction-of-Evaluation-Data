@@ -13,3 +13,6 @@ server/export_state.json
 
 # 系统文件
 .DS_Store
+
+# 视频文件（体量大，不入库；clone 后自行放入 videos/ 目录）
+videos/

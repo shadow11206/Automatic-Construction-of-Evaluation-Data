@@ -19,6 +19,7 @@ const api = {
   saveCategories: (rows) => http.put('/api/config/categories', { rows }),
   getDifficulty: () => http.get('/api/config/difficulty'),
   saveDifficulty: (weights) => http.put('/api/config/difficulty', { weights }),
+  getPatterns: () => http.get('/api/config/patterns'),
 
   // 视频
   getVideos: () => http.get('/api/videos'),
@@ -42,6 +43,7 @@ const api = {
   runGenerate: () => http.post('/api/pipeline/generate'),
   runValidate: () => http.post('/api/pipeline/validate'),
   getStatus: () => http.get('/api/pipeline/status'),
+  getPreview: () => http.get('/api/pipeline/preview'),
   stopGenerate: () => http.post('/api/pipeline/stop'),
 
   // 结果

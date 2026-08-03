@@ -21,7 +21,7 @@ from datetime import datetime
 from tqdm import tqdm
 
 from video_utils import call_qwen_vl, get_video_info
-from prompt_templates import build_vqa_prompt
+from prompt_templates import build_vqa_prompt, check_difficulty_match
 
 # 配置日志
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -101,6 +101,29 @@ def validate_result_fields(result: dict) -> list:
     required = ["prompt", "参考答案"]
     missing = [f for f in required if f not in result or not str(result[f]).strip()]
     return missing
+
+
+def check_difficulty_consistency(parsed: dict, target_difficulty: str) -> tuple:
+    """检查模型自评难度与目标难度是否一致
+
+    返回:
+        (is_match: bool, reason: str)
+        is_match=False 时 reason 说明不匹配原因
+    """
+    spec = parsed.get("QuestionSpec", {})
+    score_info = spec.get("难度评分", {})
+    total_score = score_info.get("总分")
+    final_diff = parsed.get("难度", "")
+
+    # 优先用 6 维评分总分校验
+    if isinstance(total_score, (int, float)):
+        ok, reason = check_difficulty_match(int(total_score), target_difficulty)
+        if not ok:
+            return False, f"评分卡校验失败：{reason}"
+    # 兜底：最终难度字段也要匹配
+    if final_diff and final_diff != target_difficulty:
+        return False, f"模型自评难度'{final_diff}'与目标难度'{target_difficulty}'不一致"
+    return True, ""
 
 
 def save_both(data: list, json_path: str, csv_path: str):
@@ -219,8 +242,23 @@ def process_single_task(task: dict, retry_count: int = 0) -> dict:
             result["状态"] = "需复核"
             return result
 
+    # 难度反向校验：6 维评分总分是否匹配目标难度
+    target_difficulty = task.get("目标难度", "中等")
+    diff_ok, diff_reason = check_difficulty_consistency(parsed, target_difficulty)
+    if not diff_ok:
+        if retry_count < MAX_RETRIES:
+            logger.warning(f"{task['data_id']}: {diff_reason}，第{retry_count+1}次重试...")
+            return process_single_task(task, retry_count + 1)
+        else:
+            result["备注"] = f"难度校验未通过（已重试{MAX_RETRIES}次）：{diff_reason}"
+            result["状态"] = "需复核"
+            return result
+
     # 通过基本校验
     result["状态"] = "正常"
+    # 保留 QuestionSpec 供后续分析（不影响现有字段）
+    if "QuestionSpec" in parsed:
+        result["QuestionSpec"] = parsed["QuestionSpec"]
     if not result["备注"]:
         result["备注"] = ""
     return result
