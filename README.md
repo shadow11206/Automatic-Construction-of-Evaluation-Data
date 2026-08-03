@@ -14,8 +14,8 @@
 
 ```bash
 # 1. 克隆项目（前端已内置，无需 npm）
-git clone https://github.com/shadow11206/Automatic-Construction-of-Evaluation-Data.git
-cd Automatic-Construction-of-Evaluation-Data
+git clone https://github.com/shadow11206/VQA-Auto-Generator.git
+cd VQA-Auto-Generator
 
 # 2. 安装后端依赖（首次）
 pip install -r requirements.txt
