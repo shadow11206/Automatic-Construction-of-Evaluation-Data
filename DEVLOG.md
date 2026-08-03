@@ -5,6 +5,36 @@
 
 ---
 
+## 2026-08-03 ｜ 生成按钮拆分：生成新任务 / 继续生成（按中断状态互斥）
+
+### 状态
+- ✅ 已构建并重启 server，浏览器三状态验证通过
+
+### 需求
+用户要求：有新任务时"继续生成"不可点（避免混淆），生成中断后"继续生成"才可点。因此把原单一"开始/继续生成"按钮拆为两个互斥按钮。
+
+### 实现
+- **后端（server/jobs.py）**：
+  - `JobState.last_generate` 记录上次 generate 结束信息（ended: done/stopped/error + processed/total）
+  - `preview_generate` 返回 `interrupted` = 上次以 stopped/error 结束且 processed < total
+  - `run_prepare` 重置 last_generate（重新规划任务 = 全新开始，中断标记清零）
+  - 语义取舍：中断用内存状态而非数据推断（skipped>0 推断会把"换视频加新任务"误判为中断）；server 重启后退化为"生成新任务"（功能等价，均跑 pending）
+- **前端（Dashboard.jsx）**：
+  - 「生成新任务（N 条）」：有 pending 且未中断时可点
+  - 「继续生成（N 条未完成）」：interrupted 且 hasPending 时可点
+  - 全部完成时两个都禁用（title 提示"所有任务已完成"）
+
+### 验证
+- verify_buttons.py 9 项断言全过（初始/完成/停止/报错/prepare 重置/processed==total 不算中断）
+- verify_fix.py 15 项回归全过（data_id 修复未被破坏）
+- 浏览器三状态端到端验证：全部完成（双禁用）→ 加新任务（生成新任务可点/继续生成禁用）→ 真实启动生成后停止（继续生成可点/生成新任务禁用）
+
+### 踩坑
+- 停止语义边界：协作式停止在"当前条目完成后"生效，若停止时最后一条恰好完成（processed==total）不算中断——正确行为
+- 验证中误调 2 次真实模型（video_42），已恢复数据（tasks 3 条 / results 5 条，无 TMP 残留）
+
+---
+
 ## 2026-08-03 ｜ Bug 修复：换视频重跑覆盖旧结果（data_id 撞车）
 
 ### 状态

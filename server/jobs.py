@@ -61,6 +61,7 @@ class JobState:
             self.started_at = None
             self.finished_at = None
             self.summary = None         # 各步骤完成后的摘要
+            self.last_generate = None   # 上次 generate 结束信息（done/stopped/error + processed/total）
 
     def log(self, msg: str, level: str = "info"):
         with self._lock:
@@ -169,6 +170,10 @@ def run_prepare() -> dict:
         store.save_results(results, "results")
         state.log(f"历史结果 data_id 已与新任务对齐：{migrated} 条")
 
+    # 重新规划任务后，清除「上次生成中断」标记：新配置视为全新任务（前端按钮回归「生成新任务」）
+    with state._lock:
+        state.last_generate = None
+
     with open(store.TASKS_JSON, "w", encoding="utf-8") as f:
         json.dump(tasks, f, ensure_ascii=False, indent=2)
 
@@ -249,11 +254,15 @@ def preview_generate() -> dict:
         t for t in tasks
         if (t["data_id"], t["视频文件名"], t["一级类目"], t["二级类目"]) not in done_fingerprints
     ]
+    # 中断 = 上次 generate 以停止/报错结束且未跑完（server 重启后为 False，退化为「生成新任务」）
+    lg = state.last_generate
+    interrupted = bool(lg and lg["ended"] in ("stopped", "error") and lg["processed"] < lg["total"])
     return {
         "total_tasks": len(tasks),
         "pending": len(pending),
         "skipped": len(tasks) - len(pending),
         "existing_results": len(results),
+        "interrupted": interrupted,
     }
 
 
@@ -284,6 +293,7 @@ def _generate_worker():
             with state._lock:
                 state.status = "done"
                 state.finished_at = datetime.now().isoformat()
+                state.last_generate = {"ended": "done", "processed": 0, "total": 0}
             state.log("所有任务已完成，无需处理")
             return
 
@@ -338,6 +348,11 @@ def _generate_worker():
             normal = sum(1 for r in results if r.get("状态") == "正常")
             state.summary = {"total": len(results), "normal": normal,
                              "review": len(results) - normal}
+            state.last_generate = {
+                "ended": "stopped" if state.stop_requested else "done",
+                "processed": processed,
+                "total": len(pending),
+            }
         state.log(f"生成结束：本次处理 {processed} 条，状态={'已停止' if state.stop_requested else '完成'}")
 
     except Exception as e:
@@ -345,6 +360,11 @@ def _generate_worker():
             state.status = "error"
             state.error = str(e)
             state.finished_at = datetime.now().isoformat()
+            state.last_generate = {
+                "ended": "error",
+                "processed": processed if "processed" in locals() else 0,
+                "total": len(pending) if "pending" in locals() else 0,
+            }
         state.log(f"生成任务异常中断: {e}", "error")
 
 

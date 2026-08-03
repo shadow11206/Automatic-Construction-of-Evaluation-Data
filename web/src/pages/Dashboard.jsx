@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import { Card, Steps, Button, Progress, Row, Col, Statistic, Space, message } from 'antd'
 import {
   PlayCircleOutlined, ReloadOutlined, CheckCircleOutlined,
@@ -35,6 +35,7 @@ function Distribution({ title, data, colorMap }) {
 export default function Dashboard() {
   const { status, refresh } = usePipelineStatus()
   const [busy, setBusy] = useState('')
+  const [preview, setPreview] = useState(null)
   const running = status?.status === 'running'
   const p = status?.pipeline || {}
 
@@ -42,6 +43,15 @@ export default function Dashboard() {
   const step2 = running ? 'process' : (p.results_count > 0 ? 'finish' : 'wait')
   const step3 = p.final_exists ? 'finish' : 'wait'
   const current = running ? 1 : (p.final_exists ? 3 : (p.results_count > 0 ? 2 : (p.tasks_count > 0 ? 1 : 0)))
+
+  const loadPreview = async () => {
+    if (!p.tasks_count || running) return
+    try {
+      const res = await api.getPreview()
+      setPreview(res)
+    } catch { /* 静默 */ }
+  }
+  useEffect(() => { loadPreview() }, [p.tasks_count, p.results_count, running])
 
   const doAction = async (name, fn, okMsg) => {
     setBusy(name)
@@ -55,6 +65,12 @@ export default function Dashboard() {
   }
 
   const percent = status?.total ? Math.round((status.done / status.total) * 100) : 0
+
+  // 生成按钮状态：有新任务时用「生成新任务」，上次生成中断时用「继续生成」（由后端记录判定）
+  const pendingCount = preview?.pending
+  const hasPending = pendingCount !== undefined && pendingCount > 0
+  const interrupted = preview?.interrupted === true && hasPending   // 中断且还有未完成任务
+  const canNewGenerate = hasPending && !interrupted
 
   return (
     <div>
@@ -72,9 +88,16 @@ export default function Dashboard() {
             onClick={() => doAction('prepare', api.runPrepare, (r) => `已生成 ${r.total} 条任务`)}>
             {p.tasks_count ? '重新准备' : '开始准备'}
           </Button>
-          <Button type="primary" icon={<PlayCircleOutlined />} loading={busy === 'generate'} disabled={running || !p.tasks_count}
+          <Button type="primary" icon={<PlayCircleOutlined />} loading={busy === 'generate'}
+            disabled={running || !p.tasks_count || !canNewGenerate}
+            title={!hasPending ? '所有任务已完成' : '上次生成未完成，请使用「继续生成」'}
             onClick={() => doAction('generate', api.runGenerate, '生成任务已启动')}>
-            {p.results_count ? '继续生成（断点续跑）' : '开始生成'}
+            {preview && canNewGenerate ? `生成新任务（${pendingCount} 条）` : '生成新任务'}
+          </Button>
+          <Button icon={<ReloadOutlined />} loading={busy === 'generate'} disabled={running || !p.tasks_count || !interrupted}
+            title={!hasPending ? '所有任务已完成' : '有新任务时请使用「生成新任务」'}
+            onClick={() => doAction('generate', api.runGenerate, '继续生成已启动')}>
+            {interrupted ? `继续生成（${pendingCount} 条未完成）` : '继续生成'}
           </Button>
           {running && (
             <Button danger icon={<StopOutlined />} onClick={async () => { await api.stopGenerate(); setTimeout(refresh, 500) }}>
