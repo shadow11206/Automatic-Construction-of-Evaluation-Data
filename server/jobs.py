@@ -11,8 +11,10 @@
 
 import sys
 import json
+import hashlib
+import random
 import threading
-from collections import deque
+from collections import Counter, deque
 from datetime import datetime
 from pathlib import Path
 
@@ -94,6 +96,24 @@ class JobState:
 state = JobState()
 
 
+def _stable_data_id(video: str, cat1: str, cat2: str, salt: str = "", seen: set | None = None) -> str:
+    """基于 视频+类目 生成稳定 data_id（VQA_xxxxx，5 位数字）
+
+    同一视频+类目永远得到同一 data_id，换视频/类目则 ID 变化。
+    这样 generate 才能区分「重跑旧任务」与「新任务」，避免新视频占用旧
+    序号 ID 后覆盖旧结果。与已有 ID（含历史 results）冲突时自动加盐。
+    """
+    seen = seen if seen is not None else set()
+    n = 0
+    while True:
+        seed = f"{video}|{cat1}|{cat2}{salt}#{n}"
+        did = f"VQA_{int(hashlib.md5(seed.encode('utf-8')).hexdigest()[:8], 16) % 100000:05d}"
+        if did not in seen:
+            seen.add(did)
+            return did
+        n += 1
+
+
 # ============================================================
 # 步骤① 准备任务清单（同步）
 # ============================================================
@@ -113,7 +133,42 @@ def run_prepare() -> dict:
     if not videos:
         raise ValueError("视频清单为空，请先在「视频管理」页勾选参与的视频")
 
+    # 固定随机种子（seed = 配置哈希）：同配置 → 同任务分配（视频-类目配对、难度均稳定），
+    # 改配置自动重新随机。否则 assign_tasks 内部每次 shuffle 会让配对漂移，
+    # 已生成的「视频+类目」被判定为新任务重复生成
+    seed_src = "|".join(f"{c['一级类目']}/{c['二级类目']}x{c['数量']}" for c in categories) + "||" + "|".join(videos)
+    random.seed(int(hashlib.md5(seed_src.encode("utf-8")).hexdigest()[:8], 16))
     tasks = prepare_tasks.assign_tasks(categories, videos, weights)
+
+    # data_id 绑定 视频+类目（稳定 ID）：同一视频+类目永远同一 ID。
+    # 旧逻辑按任务序号编号，换视频/改配置后新任务会占用旧 data_id，
+    # generate 写回时按 data_id 覆盖 → 旧结果被新视频静默替换（已修复）
+    results = store.load_results("results")
+    new_combos = {(t["视频文件名"], t["一级类目"], t["二级类目"]) for t in tasks}
+    # 只把「新任务不涉及」的历史 id 视为冲突（同配对的历史记录应复用/迁移，而不是加盐换 id）
+    seen = {r.get("data_id") for r in results
+            if r.get("data_id")
+            and (r.get("视频url", ""), r.get("一级类目", ""), r.get("二级类目", "")) not in new_combos}
+    combo_counts = Counter((t["视频文件名"], t["一级类目"], t["二级类目"]) for t in tasks)
+    for t in tasks:
+        combo = (t["视频文件名"], t["一级类目"], t["二级类目"])
+        # 同一视频+类目被分配多条任务时用目标难度区分（保持稳定）
+        salt = f"|{t['目标难度']}" if combo_counts[combo] > 1 else ""
+        t["data_id"] = _stable_data_id(*combo, salt, seen)
+
+    # 迁移历史结果：results 中「视频+类目」与新任务一致但 data_id 不同的记录，
+    # 改为新 data_id，避免历史序号 ID 与新任务撞车或换视频后重复生成
+    task_by_combo = {(t["视频文件名"], t["一级类目"], t["二级类目"]): t["data_id"] for t in tasks}
+    migrated = 0
+    for r in results:
+        combo = (r.get("视频url", ""), r.get("一级类目", ""), r.get("二级类目", ""))
+        if combo in task_by_combo and r.get("data_id") != task_by_combo[combo]:
+            r["data_id"] = task_by_combo[combo]
+            migrated += 1
+    if migrated:
+        store.save_results(results, "results")
+        state.log(f"历史结果 data_id 已与新任务对齐：{migrated} 条")
+
     with open(store.TASKS_JSON, "w", encoding="utf-8") as f:
         json.dump(tasks, f, ensure_ascii=False, indent=2)
 
@@ -179,6 +234,29 @@ def _build_profile() -> dict:
     return profile
 
 
+def preview_generate() -> dict:
+    """预览下次生成会跑多少新任务、跳过多少旧任务（不实际启动）
+
+    供前端在点生成按钮前展示，让用户明确「继续生成」实际要跑多少。
+    """
+    tasks = store.load_tasks()
+    results = store.load_results("results")
+    done_fingerprints = {
+        (r["data_id"], r.get("视频url", ""), r.get("一级类目", ""), r.get("二级类目", ""))
+        for r in results if r.get("状态") == "正常"
+    }
+    pending = [
+        t for t in tasks
+        if (t["data_id"], t["视频文件名"], t["一级类目"], t["二级类目"]) not in done_fingerprints
+    ]
+    return {
+        "total_tasks": len(tasks),
+        "pending": len(pending),
+        "skipped": len(tasks) - len(pending),
+        "existing_results": len(results),
+    }
+
+
 def _generate_worker():
     """generate 线程主体：断点续跑 + 每 5 条落盘 + 协作式停止"""
     try:
@@ -202,7 +280,6 @@ def _generate_worker():
             state.total = len(pending)
             state.skipped = len(tasks) - len(pending)
         state.log(f"总任务 {len(tasks)} | 已完成跳过 {state.skipped} | 待处理 {len(pending)}")
-
         if not pending:
             with state._lock:
                 state.status = "done"
